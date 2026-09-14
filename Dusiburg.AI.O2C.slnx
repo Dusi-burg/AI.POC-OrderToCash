@@ -2,8 +2,10 @@
   <Folder Name="/src/">
     <Project Path="src/Dusiburg.AI.O2C.AppHost/Dusiburg.AI.O2C.AppHost.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Approvals.Web/Dusiburg.AI.O2C.Approvals.Web.csproj" />
+    <Project Path="src/Dusiburg.AI.O2C.Crm.Data/Dusiburg.AI.O2C.Crm.Data.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Crm.Mcp/Dusiburg.AI.O2C.Crm.Mcp.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj" />
+    <Project Path="src/Dusiburg.AI.O2C.Erp.Data/Dusiburg.AI.O2C.Erp.Data.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Erp.Mcp/Dusiburg.AI.O2C.Erp.Mcp.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Orchestrator/Dusiburg.AI.O2C.Orchestrator.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.ServiceDefaults/Dusiburg.AI.O2C.ServiceDefaults.csproj" />
@@ -13,5 +15,8 @@
     <Project Path="tests/Dusiburg.AI.O2C.Erp.Api.Tests/Dusiburg.AI.O2C.Erp.Api.Tests.csproj" />
     <Project Path="tests/Dusiburg.AI.O2C.Mcp.Tests/Dusiburg.AI.O2C.Mcp.Tests.csproj" />
     <Project Path="tests/Dusiburg.AI.O2C.Orchestrator.Tests/Dusiburg.AI.O2C.Orchestrator.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/Dusiburg.AI.O2C.DbInit/Dusiburg.AI.O2C.DbInit.csproj" />
   </Folder>
 </Solution>

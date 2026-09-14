@@ -19,23 +19,28 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 | G1.1 | Settore merceologico dei dati demo | Forniture industriali (cuscinetti, motori, sensori, quadri): SKU tipo `IND-BRG-001` |
 | G1.2 | Formato `OrderNumber` | `SO-2026-000001` da sequence SQL `erp.OrderNumberSeq` |
 | G1.3 | Semantica di `Revision` del deal | Si incrementa solo su modifiche commerciali (importo, righe, azienda); **non** sugli aggiornamenti di stato scritti da O2C, così la `idempotencyKey` resta stabile durante il workflow |
-| G1.4 | Migrazioni | Applicate all'avvio solo in `Development`; in cloud (Fase 6) job dedicato |
+| G1.4 | Migrazioni | ~~Applicate all'avvio solo in `Development`~~ — **Rivista dall'utente (D30)**: niente migration; il database si crea da zero dal modello con il tool `tools/Dusiburg.AI.O2C.DbInit` (anche per i test); in cloud (Fase 6) da decidere |
+| G1.8 | Enum persistiti | **Deciso dall'utente (D30)**: FK verso tabelle di lookup con PK tinyint = valore esplicito dell'enum, righe generate dal codice; nuovo enum `DealStage` per lo stage del deal |
+| G1.9 | Nomi delle tabelle | **Deciso dall'utente (D31)**: singolare, niente pluralizzazioni (`Order`, `OrderStatus`, `Deal`), anche nei check constraint; con EF si imposta con `ToTable` |
 | G1.5 | `Erp.Api` rifiuta ordini per clienti `IsBlocked`? | **No**: il blocco è governato dalla policy dell'orchestratore (Fase 5); l'ERP registra l'ordine approvato |
 | G1.6 | Autenticazione su `Erp.Api` | Nessuna in locale (è chiamata solo da `Erp.Mcp` sulla rete interna); API key sui server MCP in Fase 2 |
+| G1.7 | Naming e tipo delle chiavi | **Deciso dall'utente (D29)**: PK numerica sempre `Id` (mai `<Entity>Id`), FK qualificate; niente PK GUID (il GUID pubblico è una colonna univoca dedicata); chiavi di business stringa come colonne univoche; contratti §6 invariati, mapping nel codice |
 
 ## Step operativi
 
 ### ERP mock — `src/Dusiburg.AI.O2C.Erp.Api`
 
-**1.1 — Modello e DbContext**
-- `ErpDbContext` con `HasDefaultSchema("erp")` e history table delle migrazioni nello schema `erp`.
-- Entità (§8): `Customer` (`CustomerId` int identity, `Name`, `VatNumber`, `Email`, `Address`, `CreditLimit` decimal(18,2), `IsBlocked`), `Product` (`Sku` PK, `Description`, `ListPrice` decimal(18,2), `Uom`), `StockLevel` (`Sku` PK/FK, `OnHand`, `Reserved`, `LeadTimeDays`, `RowVersion`), `Order` (`OrderId` GUID, `OrderNumber`, `CustomerId`, `Total`, `Status` = `OrderStatus`, `ExternalRef`, `IdempotencyKey`, `CreatedAt` UTC), `OrderLine` (`OrderLineId`, `OrderId`, `Sku`, `Quantity`, `UnitPrice`).
-- Indici: **univoco su `Orders.IdempotencyKey`** (§8); univoco filtrato su `Customers.VatNumber`; indice su `Customers.Email`; indice su `Orders.ExternalRef`.
-- Sequence `erp.OrderNumberSeq` per `OrderNumber` (G1.2).
+**1.1 — Modello e DbContext** ✅ (2026-09-14)
+- `ErpDbContext` con `HasDefaultSchema("erp")`, nella libreria `src/Dusiburg.AI.O2C.Erp.Data` (D30) referenziata da `Erp.Api`.
+- Entità (§8, convenzioni D29/D30): `Customer` (`Id` int identity, `Name`, `VatNumber`, `Email`, `Address`, `CreditLimit` decimal(18,2), `IsBlocked`), `Product` (`Id` int identity, `Sku` univoco, `Description`, `ListPrice` decimal(18,2), `Uom`), `StockLevel` (`Id` int identity, `ProductId` FK univoca 1:1, `OnHand`, `Reserved`, `LeadTimeDays`, `RowVersion`), `Order` (`Id` int identity, `PublicId` GUID univoco = `orderId` dei contratti, `OrderNumber` univoco, `CustomerId`, `Total`, `OrderStatusId` tinyint FK, `ExternalRef`, `IdempotencyKey`, `CreatedAt` UTC), `OrderLine` (`Id` int identity, `OrderId`, `ProductId`, `Quantity`, `UnitPrice`), lookup `OrderStatus` (`Id` tinyint = valore di `OrderStatus`, `Name`).
+- Indici: **univoco su `Order.IdempotencyKey`** (§8); univoci su `Order.PublicId`, `Order.OrderNumber`, `Product.Sku`, `StockLevel.ProductId`, `OrderStatus.Name`; univoco filtrato su `Customer.VatNumber`; indice su `Customer.Email`; indice su `Order.ExternalRef`. Check constraint su quantità, prezzi e giacenze non negativi.
+- Sequence `erp.OrderNumberSeq` per `OrderNumber` (G1.2): il formato `SO-yyyy-000000` lo compone il codice in 1.5.
 
-**1.2 — Migrazioni**
-- `dotnet ef migrations add InitialErp` (tool locale dalla Fase 0).
-- `MigrateAsync()` all'avvio in `Development` (G1.4).
+**1.2 — Creazione del database** ✅ (2026-09-14, D30: niente migration)
+- Tool `tools/Dusiburg.AI.O2C.DbInit`: `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` cancella e ricrea il database (default `(localdb)\localdev`, `O2C`; oppure `ConnectionStrings__sql` o connection string come argomento), crea le tabelle di `erp` (`EnsureCreated`) e di `crm` (`CreateTables`) e popola le lookup dagli enum. Rifiuta server non LocalDB senza `--allow-non-local`.
+- La logica sta in `O2CDatabaseInitializer.RecreateAsync`, riusabile dalle fixture dei test (1.10).
+- Eseguito sul database `O2C` di `localdev`, senza seed, per la revisione dello schema.
+- Da fare con gli endpoint: registrazione dei DbContext in DI; niente creazione del database all'avvio dei servizi.
 
 **1.3 — Seed deterministico** (idempotente: inserisce solo se le tabelle sono vuote)
 - ≥ 20 prodotti con prezzi realistici.
@@ -61,10 +66,10 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 
 ### CRM mock — `src/Dusiburg.AI.O2C.Crm.Mcp`
 
-**1.7 — Persistenza e client**
-- `CrmDbContext` schema `crm`: `Company` (`CompanyId`, `Name`, `VatNumber`, `Email`, `Address`), `Deal` (`DealId` string es. `D-1001`, `Name`, `Amount`, `Currency`, `Stage`, `CompanyId`, `Revision`, `ErpOrderNumber`, `O2CStatus`, `LastNote`, `UpdatedAt`), `DealLineItem` (`Sku`, `Quantity`, `UnitPrice`), `DealNote` (storico delle note scritte da O2C, per audit).
-- `ICrmClient` con `GetDealAsync`, `GetCompanyAsync`, `UpdateDealAsync`; implementazione `MockCrmClient` su EF. `UpdateDealAsync` **non** incrementa `Revision` (G1.3) e aggiunge una `DealNote`.
-- Migrazione `InitialCrm` + `MigrateAsync()` in `Development`.
+**1.7 — Persistenza e client** (persistenza ✅ 2026-09-14; client da fare)
+- `CrmDbContext` schema `crm`, nella libreria `src/Dusiburg.AI.O2C.Crm.Data` (D30) referenziata da `Crm.Mcp`; convenzioni D29/D30: `Company` (`Id` int identity, `Code` univoco es. `C-01` = `companyId`, `Name`, `VatNumber`, `Email`, `Address`), `Deal` (`Id` int identity, `Code` univoco es. `D-1001` = `dealId`, `Name`, `Amount`, `Currency` char(3), `DealStageId` tinyint FK, `CompanyId` FK, `Revision`, `ErpOrderNumber`, `DealStatusId` tinyint FK nullable = stato O2C, `LastNote`, `UpdatedAt`), `DealLineItem` (`Id` int identity, `DealId` FK, `Sku` senza FK verso l'ERP, `Quantity`, `UnitPrice`), `DealNote` (`Id` int identity, `DealId` FK, `DealStatusId` tinyint FK, `ErpOrderNumber`, `Note`, `CreatedAt`: storico delle scritture di O2C, per audit), lookup `DealStage` (enum `DealStage`: `ContractSent` = 1, `ClosedWon` = 2, `ClosedLost` = 3) e `DealStatus` (enum `DealStatus` di `Shared`).
+- `ICrmClient` con `GetDealAsync`, `GetCompanyAsync`, `UpdateDealAsync`; implementazione `MockCrmClient` su EF. `UpdateDealAsync` **non** incrementa `Revision` (G1.3) e aggiunge una `DealNote`. Il contratto `get_deal` espone `stage` per nome (`DealStage.ToString()`).
+- Tabelle create da `tools/Dusiburg.AI.O2C.DbInit` insieme a quelle di `erp` (vedi 1.2), nessuna migration.
 
 **1.8 — Seed degli scenari demo** (D5; tutti i deal partono in stage `ContractSent`)
 
@@ -89,7 +94,7 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 
 **1.10 — `tests/Dusiburg.AI.O2C.Erp.Api.Tests`**
 - `WebApplicationFactory<Program>` con database di test dedicato su `(localdb)\localdev` (`O2C_Test_<guid>`, creato e cancellato dalla fixture).
-- Casi: giacenza SKU noto/sconosciuto; `available` con `Reserved` > 0; creazione cliente e duplicato (409); ricerca cliente per partita IVA ed email; ordine felice (totale, stato, riserva); **doppio POST con stessa chiave → stesso `orderId`, una sola riga in `Orders`**; **POST paralleli con stessa chiave → un solo ordine**; validazioni (400).
+- Casi: giacenza SKU noto/sconosciuto; `available` con `Reserved` > 0; creazione cliente e duplicato (409); ricerca cliente per partita IVA ed email; ordine felice (totale, stato, riserva); **doppio POST con stessa chiave → stesso `orderId`, una sola riga in `Order`**; **POST paralleli con stessa chiave → un solo ordine**; validazioni (400).
 
 **1.11 — `tests/Dusiburg.AI.O2C.Mcp.Tests` (parte CRM)**
 - `MockCrmClient` su DB di test: lettura deal con righe e revision; `UpdateDealAsync` non cambia `Revision` e scrive una nota; reset.

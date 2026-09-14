@@ -17,7 +17,7 @@
 | Fase | File | Obiettivo | Stato |
 |------|------|-----------|-------|
 | 0 | [fase-0-setup-scaffolding.md](fase-0-setup-scaffolding.md) | Tooling, repo, solution, AppHost, ServiceDefaults, Shared | ✅ Completata (2026-09-14) |
-| 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | ⬜ Da iniziare |
+| 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | 🟨 In corso (schema DB fatto, 2026-09-14) |
 | 2 | [fase-2-server-mcp.md](fase-2-server-mcp.md) | Erp.Mcp e Crm.Mcp con i tool di §6 | ⬜ Da iniziare |
 | 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ⬜ Da iniziare |
 | 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ⬜ Da iniziare |
@@ -107,6 +107,9 @@ flowchart LR
 | D26 | WSL spegne la VM (e Docker) pochi secondi dopo l'ultima sessione: l'AppHost tiene aperta una sessione con la risorsa eseguibile `rabbitmq-wsl` (`wsl -d Ubuntu-26.04 -- docker start --attach rabbitmq`). Nessuna configurazione di macchina né script al riavvio; il broker è attivo solo mentre gira l'AppHost (Gate F0, 2026-09-14) | 0, 4 |
 | D27 | Root name **`Dusiburg.AI.O2C`**: progetti, cartelle, assembly e namespace si chiamano `Dusiburg.AI.O2C.<Nome>` (es. `src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj`), solution `Dusiburg.AI.O2C.slnx`, sorgenti di telemetria `Dusiburg.AI.O2C.*`. Restano invariati i valori di dominio (`o2c-…` della chiave di idempotenza, vhost `o2c`, database `O2C`) e i nomi delle risorse Aspire (`erp-api`, …). Correzione di G0.4 chiesta dall'utente dopo la Fase 0 (2026-09-14) | tutte |
 | D28 | Framework di test **NUnit 4** con modello a vincoli `Assert.That` e NUnit.Analyzers, runner NUnit su Microsoft.Testing.Platform (`EnableNUnitRunner`), coverage con `Microsoft.Testing.Extensions.CodeCoverage` (anche da Visual Studio). Sostituisce xUnit v3 dopo un confronto sugli stessi test (stessi risultati); scelto per familiarità dell'utente. Da ricordare: un'istanza per classe di test (stato da reinizializzare in `[SetUp]`) ed esecuzione sequenziale per default (2026-09-14) | tutte |
+| D29 | **Convenzioni di modello dati** (utente, Gate F1): PK numerica sempre `Id`, mai `<Entity>Id`; FK qualificate (`CustomerId`); **niente PK GUID** — se serve un GUID è una colonna dedicata con vincolo univoco (`erp.Order.PublicId` = `orderId` dei contratti); chiavi di business stringa come colonne univoche con PK `Id` int (`erp.Product.Sku`, `crm.Company.Code` = `companyId`, `crm.Deal.Code` = `dealId`). I contratti di §6 e i record di `Shared` restano invariati, mapping nel codice. Convenzione riportata nella skill `db-operations` (copia in `C:Dev.claude`, vedi D31) (2026-09-14) | 1, 4, 5 |
+| D30 | **Enum e creazione dello schema** (utente, Gate F1): (a) ogni enum persistito è una **FK verso una tabella di lookup** con PK `tinyint` = valore esplicito del membro nel codice e `Name` univoco, righe generate da `Enum.GetValues` (`erp.OrderStatus`, `crm.DealStage`, `crm.DealStatus`; nuovo enum `DealStage`); (b) **niente migration EF**: il database si crea da zero dal modello con il tool `tools/Dusiburg.AI.O2C.DbInit` (drop + create, `EnsureCreated` per `erp` e `CreateTables` per `crm`), riusabile dalle fixture dei test; niente `dotnet-ef` né pacchetto Design; (c) modelli dati in librerie dedicate `src/Dusiburg.AI.O2C.Erp.Data` e `src/Dusiburg.AI.O2C.Crm.Data` (il tool non può referenziare i progetti web). Entrambe le regole (a) e (b) riportate nella skill `db-operations` (copia in `C:Dev.claude`, vedi D31) (2026-09-14) | 1, 4, 5 |
+| D31 | **Nomi di tabella al singolare** (utente, Gate F1): niente pluralizzazioni, la tabella si chiama come il singolo elemento riga (`erp.Order`, `erp.OrderStatus`, `crm.Deal`, `crm.DealStatus`, e in Fase 5 `orch.ApprovalRequest`); stesso nome nei check constraint (`CK_Order_Total`) e negli indici generati. Con EF il nome si imposta con `ToTable` (i `DbSet` restano al plurale nel codice). Le convenzioni D29–D31 stanno nella copia `C:\Dev\.claude\skills\db-operations\SKILL.md` (scelta dell'utente; nessuna modifica sotto `C:\DevOther`) (2026-09-14) | 1, 4, 5 |
 
 ## Registro modifiche alla specifica
 
@@ -125,15 +128,18 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M9 | §5, §7 | Regole di dominio: parziale/bloccato, solo EUR, prezzo del deal, riserva stock | D20–D22 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Gate F3 | Da decidere in F3 |
 | M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web) | Gate F4 | Da decidere in F4 |
-| M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequests` | Gate F5 | Da decidere in F5 |
+| M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Gate F5 | Da decidere in F5 |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F6 | Da decidere in F6 |
 | M14 | §10 | Repository `AI.POC-OrderToCash` invece di `o2c-agentic-poc` | Gate F0 (D15) | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M15 | §10 | Cartelle e progetti con root name `Dusiburg.AI.O2C.<Nome>` | D27 | ✅ Applicata dopo F0 (`docs/architettura.md`) |
+| M16 | §8 | Convenzioni di chiave: PK `Id` numerica, niente PK GUID (`Order.PublicId`), chiavi di business come colonne univoche (`Sku`, `Code`) | D29 | ✅ Applicata in F1 (`docs/architettura.md`) |
+| M17 | §8, §10 | Enum persistiti come FK verso tabelle di lookup tinyint (`OrderStatus`, `DealStage`, `DealStatus`); schema creato da zero dal tool `tools/Dusiburg.AI.O2C.DbInit` senza migration; progetti `Erp.Data` e `Crm.Data` | D30 | ✅ Applicata in F1 (`docs/architettura.md`) |
+| M18 | §7, §8 | Nomi di tabella al singolare, senza pluralizzazioni (`Order`, `OrderStatus`, `Deal`, `ApprovalRequest`), anche nei check constraint | D31 | ✅ Applicata in F1 (`docs/architettura.md`) |
 
 ## Convenzioni trasversali (valgono da Fase 0)
 
 - **Correlazione**: header `x-correlation-id` su ogni HTTP/MCP; attributo `correlation.id` su span e scope di log; header omonimo sui messaggi del broker. Generato una sola volta all'ingresso del workflow (GUID v7).
-- **Idempotenza**: `IdempotencyKey.From(dealId, revision)`, calcolata dal codice e iniettata nella chiamata `create_order`; garanzia finale = indice univoco su `erp.Orders.IdempotencyKey`.
+- **Idempotenza**: `IdempotencyKey.From(dealId, revision)`, calcolata dal codice e iniettata nella chiamata `create_order`; garanzia finale = indice univoco su `erp.Order.IdempotencyKey`.
 - **Tracing**: ogni tool call produce uno span con `agent.name`, `tool.name`, `correlation.id`, `tool.outcome` + durata; prefisso `ActivitySource` `Dusiburg.AI.O2C.*`.
 - **Errori dei tool**: sempre `{ error: { code, message } }`; catalogo codici: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL`.
 - **Segreti**: solo user-secrets in locale (AppHost e progetti), mai nel repo; controllo con grep prima di ogni commit.

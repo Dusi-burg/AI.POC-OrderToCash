@@ -2,6 +2,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Data\Dusiburg.AI.O2C.Erp.Data.csproj" />
   </ItemGroup>
 
 </Project>

@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Modello dati dell'ERP mock (schema erp): usato da Erp.Api e dal tool DbInit. Nessuna migration (D30). -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Shared\Dusiburg.AI.O2C.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

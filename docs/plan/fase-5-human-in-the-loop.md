@@ -19,7 +19,7 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 | G5.1 | Meccanismo di ripresa: (A) checkpoint nativo o (B) resume deterministico? | Decisione sull'esito dello spike S5 (D16); (B) è già progettato come ripiego |
 | G5.2 | Cliente nuovo + rifiuto: l'anagrafica creata da `create_customer` prima di `create_order` resta in ERP | Accettato (conforme a §13: solo `create_order` è sensibile); la policy riconosce il cliente nuovo dal `DealContext` (`CustomerCreatedInThisRun`); documentato nel README |
 | G5.3 | Consegna della decisione all'orchestratore | Messaggio `approval-decided` su RabbitMQ come acceleratore + **sweep di riconciliazione** periodica e all'avvio (richieste decise con workflow ancora in `AwaitingApproval`): niente outbox transazionale |
-| G5.4 | Una sola traccia attraverso un'attesa di ore | Colonna `TraceParent` su `ApprovalRequests`; la ripresa usa quel contesto come parent → stesso trace id (modifica M12) |
+| G5.4 | Una sola traccia attraverso un'attesa di ore | Colonna `TraceParent` su `ApprovalRequest`; la ripresa usa quel contesto come parent → stesso trace id (modifica M12) |
 | G5.5 | Timeout in demo | `APPROVAL_TIMEOUT_HOURS` accetta decimali (es. `0.02` ≈ 1 minuto) |
 | G5.6 | "Notifica al richiedente" alla scadenza | `update_deal(Expired)` con nota + log strutturato (D24) |
 | G5.7 | Tecnologia della UI | Razor Pages, nessuna libreria JS |
@@ -47,7 +47,7 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 - L'host chiama `update_deal(ApprovalPending)` con i motivi; il run termina; il messaggio viene confermato (ack). Nulla resta in memoria.
 - `IsBlocked`: le istruzioni di `OrderAgent` chiedono di proporre comunque l'ordine (l'approvazione è l'unica strada, §7).
 
-**5.3 — Tabella `ApprovalRequests`** (`src/Dusiburg.AI.O2C.Orchestration.Data`)
+**5.3 — Tabella `ApprovalRequest`** (`src/Dusiburg.AI.O2C.Orchestration.Data`)
 - Campi di §7 + `RowVersion`, `TraceParent`, `Reasons` (JSON); indice `(Status, RequestedAt)`; migrazione `AddApprovals`.
 
 **5.4 — `src/Dusiburg.AI.O2C.Approvals.Web`**

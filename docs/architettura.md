@@ -172,7 +172,7 @@ Semantica dei dati usati dalle regole (M9): una riga è disponibile se `OnHand �
 
 **Canale**\: Adaptive Card in Teams con azioni Approva/Rifiuta; fallback per il POC, una pagina web `/approvals` che elenca le richieste pendenti. Entrambi scrivono sullo stesso endpoint di callback.
 
-**Persistenza dello stato** — tabella `ApprovalRequests`\:
+**Persistenza dello stato** — tabella `ApprovalRequest`\:
 
 | Campo | Tipo | Note |
 | --- | --- | --- |
@@ -194,17 +194,22 @@ Database relazionale (Azure SQL in cloud, SQL Server LocalDB `(localdb)\localdev
 
 | Tabella | Campi principali |
 | --- | --- |
-| `Customers` | `CustomerId`, `Name`, `VatNumber`, `Email`, `Address`, `CreditLimit`, `IsBlocked` |
-| `Products` | `Sku`, `Description`, `ListPrice`, `Uom` |
-| `StockLevels` | `Sku`, `OnHand`, `Reserved`, `LeadTimeDays` |
-| `Orders` | `OrderId`, `OrderNumber`, `CustomerId`, `Total`, `Status`, `ExternalRef`, `IdempotencyKey`, `CreatedAt` |
-| `OrderLines` | `OrderLineId`, `OrderId`, `Sku`, `Quantity`, `UnitPrice` |
-| `ApprovalRequests` | vedi §7 |
+| `Customer` | `Id`, `Name`, `VatNumber`, `Email`, `Address`, `CreditLimit`, `IsBlocked` |
+| `Product` | `Id`, `Sku` (univoco), `Description`, `ListPrice`, `Uom` |
+| `StockLevel` | `Id`, `ProductId` (univoco, 1:1), `OnHand`, `Reserved`, `LeadTimeDays`, `RowVersion` |
+| `Order` | `Id`, `PublicId` (GUID univoco), `OrderNumber`, `CustomerId`, `Total`, `OrderStatusId`, `ExternalRef`, `IdempotencyKey`, `CreatedAt` |
+| `OrderStatus` | `Id` (tinyint = valore di `OrderStatus`), `Name` — lookup generata dall'enum |
+| `OrderLine` | `Id`, `OrderId`, `ProductId`, `Quantity`, `UnitPrice` |
+| `ApprovalRequest` | vedi §7 |
 | `WorkflowState` | `CorrelationId`, `DealId`, `Phase`, `StateJson`, `UpdatedAt` |
 
-Vincolo: indice univoco su `Orders.IdempotencyKey` — è il meccanismo che rende impossibile la creazione doppia di un ordine a fronte di un retry dell'agente.
+Vincolo: indice univoco su `Order.IdempotencyKey` — è il meccanismo che rende impossibile la creazione doppia di un ordine a fronte di un retry dell'agente.
 
-Schemi (M2): le tabelle ERP stanno nello schema `erp` (DbContext di `Erp.Api`), `ApprovalRequests` e `WorkflowState` nello schema `orch` (Orchestrator), il CRM mock nello schema `crm` (`Crm.Mcp`). Stesso database `O2C`, DbContext separati.
+Convenzioni di chiave (M16): la PK numerica si chiama sempre `Id` e le FK sono qualificate (`CustomerId`); non si usano PK GUID — il GUID esposto come `orderId` dai contratti di §6 è la colonna univoca `Order.PublicId`; le chiavi di business stringa sono colonne univoche accanto a `Id` (`Product.Sku`; nel CRM `Company.Code` = `companyId` e `Deal.Code` = `dealId`, con `DealLineItem` e `DealNote` figlie di `Deal`). I contratti di §6 non cambiano: la traduzione fra nomi di tabella e nomi di contratto è nel codice.
+
+Schemi (M2): le tabelle ERP stanno nello schema `erp` (`ErpDbContext` in `Erp.Data`, usato da `Erp.Api`), `ApprovalRequest` e `WorkflowState` nello schema `orch` (Orchestrator), il CRM mock nello schema `crm` (`CrmDbContext` in `Crm.Data`, usato da `Crm.Mcp`: `Company`, `Deal`, `DealLineItem`, `DealNote`). Stesso database `O2C`, DbContext separati.
+
+Enum e creazione dello schema (M17): ogni enum persistito è una FK verso una tabella di lookup con PK `tinyint` uguale al valore esplicito del membro nel codice e `Name` univoco, righe generate dall'enum (`erp.OrderStatus`; `crm.DealStage` per lo stage del deal, `crm.DealStatus` per lo stato O2C). Non si usano migration: il database si crea da zero dal modello con `tools/Dusiburg.AI.O2C.DbInit` (drop + create), e ogni modifica del modello si applica ricreandolo.
 
 ## 9\. Stack tecnico
 
@@ -229,9 +234,11 @@ AI.POC-OrderToCash/
 ├─ src/
 │  ├─ Dusiburg.AI.O2C.AppHost/             # .NET Aspire: composizione locale di tutti i servizi
 │  ├─ Dusiburg.AI.O2C.ServiceDefaults/     # OpenTelemetry, health check, service discovery, correlation id condivisi
-│  ├─ Dusiburg.AI.O2C.Erp.Api/             # Minimal API + EF Core: il "gestionale" mock
+│  ├─ Dusiburg.AI.O2C.Erp.Api/             # Minimal API: il "gestionale" mock
+│  ├─ Dusiburg.AI.O2C.Erp.Data/            # Modello EF Core dell'ERP, schema erp (M17)
 │  ├─ Dusiburg.AI.O2C.Erp.Mcp/             # Server MCP sopra Erp.Api
 │  ├─ Dusiburg.AI.O2C.Crm.Mcp/             # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
+│  ├─ Dusiburg.AI.O2C.Crm.Data/            # Modello EF Core del CRM mock, schema crm (M17)
 │  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, ToolApprovalAgent
 │  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
 │  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
@@ -266,7 +273,7 @@ In locale l'AppHost passa database e broker ai servizi come connection string As
 
 Ogni fase è completa e verificabile prima di passare alla successiva. Le Fasi 1–5 si sviluppano e si verificano **interamente in locale** con l'AppHost Aspire di §3.2; la Fase 6 introduce il cloud.
 
-**Fase 1 — Sistemi di base.** `Erp.Api` con modello dati, migrazioni e seed; collegamento al CRM (HubSpot o mock) verificato. \
+**Fase 1 — Sistemi di base.** `Erp.Api` con modello dati, database creato da zero dal modello (nessuna migration, M17) e seed; collegamento al CRM (HubSpot o mock) verificato. \
 *Accettazione*\: si crea un ordine e si legge una giacenza via HTTP; il deal di test è leggibile dal CRM. Nessun agente coinvolto.
 
 **Fase 2 — Server MCP.** `Erp.Mcp` e `Crm.Mcp` che espongono i tool di §6. \
@@ -354,7 +361,10 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M9 | §5, §7 | Regole di dominio: riga non disponibile e SKU inesistente, solo EUR, prezzo del deal, riserva dello stock | Applicata (Fase 0) |
 | M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Da decidere (Gate Fase 3) |
 | M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`) | Da decidere (Gate Fase 4) |
-| M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequests` | Da decidere (Gate Fase 5) |
+| M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Da decidere (Gate Fase 5) |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
 | M14 | §10 | Repository `AI.POC-OrderToCash` (clone GitHub) invece di `o2c-agentic-poc` | Applicata (Fase 0) |
 | M15 | §10 | Progetti, cartelle e namespace con root name `Dusiburg.AI.O2C` (es. `src/Dusiburg.AI.O2C.Erp.Api`), solution `Dusiburg.AI.O2C.slnx` | Applicata (dopo Fase 0) |
+| M16 | §8 | Convenzioni di chiave: PK numerica `Id` e FK qualificate, niente PK GUID (`Order.PublicId` univoco), chiavi di business stringa come colonne univoche (`Product.Sku`, `Company.Code`, `Deal.Code`); contratti di §6 invariati | Applicata (Fase 1) |
+| M17 | §8, §10 | Enum persistiti come FK verso tabelle di lookup con PK tinyint = valore esplicito dell'enum (`OrderStatus`, `DealStage`, `DealStatus`); nessuna migration: database creato da zero dal modello con `tools/Dusiburg.AI.O2C.DbInit`; modelli dati nei progetti `src/Dusiburg.AI.O2C.Erp.Data` e `src/Dusiburg.AI.O2C.Crm.Data` | Applicata (Fase 1) |
+| M18 | §7, §8 | Nomi di tabella al singolare, senza pluralizzazioni (`Order`, `OrderStatus`, `Deal`, `ApprovalRequest`), anche nei nomi dei check constraint | Applicata (Fase 1) |

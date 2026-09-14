@@ -1,0 +1,14 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Inizializzazione da zero del database O2C dal modello EF, senza migration (D30). -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Data\Dusiburg.AI.O2C.Erp.Data.csproj" />
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Crm.Data\Dusiburg.AI.O2C.Crm.Data.csproj" />
+  </ItemGroup>
+
+</Project>
