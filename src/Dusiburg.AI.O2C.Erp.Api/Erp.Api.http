@@ -1,0 +1,77 @@
+# ERP mock — Erp.Api (http://localhost:5101). Dati demo: docs/demo.md.
+# Database: dotnet run --project tools/Dusiburg.AI.O2C.DbInit (lo ricrea con i dati demo).
+
+@erp = http://localhost:5101
+@correlationId = demo-fase1-001
+
+### Giacenza di uno SKU disponibile
+GET {{erp}}/api/stock/IND-BRG-001?quantity=40
+x-correlation-id: {{correlationId}}
+
+### Giacenza con riserva: OnHand 12, Reserved 2 → 11 pezzi non disponibili
+GET {{erp}}/api/stock/IND-MOT-002?quantity=11
+
+### SKU inesistente (404, code NOT_FOUND)
+GET {{erp}}/api/stock/IND-SEN-999?quantity=1
+
+### Cliente per partita IVA (azienda C-01 del deal D-1001)
+# @name customer
+GET {{erp}}/api/customers?vatNumber=IT01234560157
+
+### Cliente per email
+GET {{erp}}/api/customers?email=acquisti@brambilla-om.it
+
+### Nuovo cliente (azienda C-04 del deal D-1004); la seconda volta 409 CONFLICT
+POST {{erp}}/api/customers
+Content-Type: application/json
+
+{
+  "name": "Nuova Robotica Marche S.r.l.",
+  "vatNumber": "IT11234560422",
+  "email": "acquisti@nuovaroboticamarche.it",
+  "address": "Via dell'Artigianato 9, 60027 Osimo (AN)"
+}
+
+### Ordine del deal D-1001: la prima volta 201 con OrderNumber
+# @name createOrder
+POST {{erp}}/api/orders
+Content-Type: application/json
+x-correlation-id: {{correlationId}}
+
+{
+  "customerId": {{customer.response.body.$.customerId}},
+  "lines": [
+    { "sku": "IND-BRG-001", "quantity": 40, "unitPrice": 12.00 },
+    { "sku": "IND-BRG-004", "quantity": 10, "unitPrice": 28.50 },
+    { "sku": "IND-LUB-001", "quantity": 20, "unitPrice": 7.50 },
+    { "sku": "IND-SEN-001", "quantity": 25, "unitPrice": 22.80 }
+  ],
+  "externalRef": "D-1001",
+  "idempotencyKey": "o2c-D-1001-r1"
+}
+
+### Stesso ordine con la stessa chiave: 200 e stesso orderId, nessun duplicato
+POST {{erp}}/api/orders
+Content-Type: application/json
+x-correlation-id: {{correlationId}}
+
+{
+  "customerId": {{customer.response.body.$.customerId}},
+  "lines": [
+    { "sku": "IND-BRG-001", "quantity": 40, "unitPrice": 12.00 },
+    { "sku": "IND-BRG-004", "quantity": 10, "unitPrice": 28.50 },
+    { "sku": "IND-LUB-001", "quantity": 20, "unitPrice": 7.50 },
+    { "sku": "IND-SEN-001", "quantity": 25, "unitPrice": 22.80 }
+  ],
+  "externalRef": "D-1001",
+  "idempotencyKey": "o2c-D-1001-r1"
+}
+
+### Lettura dell'ordine con le righe
+GET {{erp}}/api/orders/{{createOrder.response.body.$.orderId}}
+
+### Giacenza dopo l'ordine: Reserved di IND-BRG-001 passato da 20 a 60
+GET {{erp}}/api/stock/IND-BRG-001?quantity=440
+
+### Reset dei dati demo (solo Development): ordini cancellati, giacenze e clienti del seed
+POST {{erp}}/dev/reset

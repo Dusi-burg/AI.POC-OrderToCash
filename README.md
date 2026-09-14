@@ -5,7 +5,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 - Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
 - Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
 
-> **Stato**: Fase 0 — scaffolding. Tutti i servizi sono vuoti ma avviabili; correlazione, telemetria e gestione dei segreti sono già cablate.
+> **Stato**: Fase 1 — sistemi di base. L'ERP mock (`Erp.Api`: clienti, giacenze, ordini idempotenti) e il CRM mock (`Crm.Mcp`: deal e aziende, endpoint dev) funzionano via HTTP sui dati demo di [docs/demo.md](docs/demo.md); nessun agente ancora. Correlazione, telemetria e gestione dei segreti sono cablate dalla Fase 0.
 
 ## Struttura
 
@@ -86,6 +86,15 @@ $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusibur
 | RabbitMQ management | http://localhost:15672 |
 
 Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in Development).
+
+## Demo
+
+Scenari, dati demo e reset sono descritti in [docs/demo.md](docs/demo.md). Richieste pronte:
+
+- `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` — API dell'ERP: clienti, giacenze, ordini (compreso il doppio POST con la stessa `idempotencyKey`).
+- `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http` — endpoint dev del CRM mock (solo Development): deal, chiusura `ClosedWon`, reset.
+
+Per ripetere la demo senza ricreare il database: `POST /dev/reset` su Erp.Api e Crm.Mcp; per ripartire da zero si rilancia `DbInit`.
 
 ## Build e test
 

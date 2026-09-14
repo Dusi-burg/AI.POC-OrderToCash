@@ -1,0 +1,18 @@
+# CRM mock — endpoint dev di Crm.Mcp (http://localhost:5103), solo in Development. Dati demo: docs/demo.md.
+
+@crm = http://localhost:5103
+
+### Elenco dei deal con stage, revisione e stato O2C
+GET {{crm}}/dev/deals
+
+### Deal D-1001 con righe, revisione, stato O2C e note
+GET {{crm}}/dev/deals/D-1001
+
+### Deal inesistente (404, code NOT_FOUND)
+GET {{crm}}/dev/deals/D-9999
+
+### Chiusura del deal: stage ClosedWon, revisione invariata (la pubblicazione sul broker arriva in Fase 4)
+POST {{crm}}/dev/deals/D-1001/close-won
+
+### Reset dei dati demo: aziende, deal e note del seed
+POST {{crm}}/dev/reset

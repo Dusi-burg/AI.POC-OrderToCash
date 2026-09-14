@@ -22,6 +22,8 @@
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Api\Dusiburg.AI.O2C.Erp.Api.csproj" />
+    <!-- Creazione dei database di test dal modello (D30) -->
+    <ProjectReference Include="..\..\tools\Dusiburg.AI.O2C.DbInit\Dusiburg.AI.O2C.DbInit.csproj" />
   </ItemGroup>
 
 </Project>
