@@ -1,0 +1,17 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AppHost/AppHost.csproj" />
+    <Project Path="src/Approvals.Web/Approvals.Web.csproj" />
+    <Project Path="src/Crm.Mcp/Crm.Mcp.csproj" />
+    <Project Path="src/Erp.Api/Erp.Api.csproj" />
+    <Project Path="src/Erp.Mcp/Erp.Mcp.csproj" />
+    <Project Path="src/Orchestrator/Orchestrator.csproj" />
+    <Project Path="src/ServiceDefaults/ServiceDefaults.csproj" />
+    <Project Path="src/Shared/Shared.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/Erp.Api.Tests/Erp.Api.Tests.csproj" />
+    <Project Path="tests/Mcp.Tests/Mcp.Tests.csproj" />
+    <Project Path="tests/Orchestrator.Tests/Orchestrator.Tests.csproj" />
+  </Folder>
+</Solution>

@@ -1,0 +1,14 @@
+<Project>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <!-- Cartelle come §10 della specifica, assembly e namespace con prefisso O2C. (G0.4) -->
+    <AssemblyName>O2C.$(MSBuildProjectName)</AssemblyName>
+    <RootNamespace>O2C.$(MSBuildProjectName)</RootNamespace>
+  </PropertyGroup>
+
+</Project>

@@ -1,0 +1,5 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Nessuna dipendenza da ASP.NET Core o EF Core: solo contratti e helper puri. -->
+
+</Project>
