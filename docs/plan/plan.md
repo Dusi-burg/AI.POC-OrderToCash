@@ -17,7 +17,7 @@
 | Fase | File | Obiettivo | Stato |
 |------|------|-----------|-------|
 | 0 | [fase-0-setup-scaffolding.md](fase-0-setup-scaffolding.md) | Tooling, repo, solution, AppHost, ServiceDefaults, Shared | ✅ Completata (2026-09-14) |
-| 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | 🟨 In corso (schema DB fatto, 2026-09-14) |
+| 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | ✅ Completata (2026-09-14) |
 | 2 | [fase-2-server-mcp.md](fase-2-server-mcp.md) | Erp.Mcp e Crm.Mcp con i tool di §6 | ⬜ Da iniziare |
 | 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ⬜ Da iniziare |
 | 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ⬜ Da iniziare |
@@ -110,6 +110,7 @@ flowchart LR
 | D29 | **Convenzioni di modello dati** (utente, Gate F1): PK numerica sempre `Id`, mai `<Entity>Id`; FK qualificate (`CustomerId`); **niente PK GUID** — se serve un GUID è una colonna dedicata con vincolo univoco (`erp.Order.PublicId` = `orderId` dei contratti); chiavi di business stringa come colonne univoche con PK `Id` int (`erp.Product.Sku`, `crm.Company.Code` = `companyId`, `crm.Deal.Code` = `dealId`). I contratti di §6 e i record di `Shared` restano invariati, mapping nel codice. Convenzione riportata nella skill `db-operations` (copia in `C:Dev.claude`, vedi D31) (2026-09-14) | 1, 4, 5 |
 | D30 | **Enum e creazione dello schema** (utente, Gate F1): (a) ogni enum persistito è una **FK verso una tabella di lookup** con PK `tinyint` = valore esplicito del membro nel codice e `Name` univoco, righe generate da `Enum.GetValues` (`erp.OrderStatus`, `crm.DealStage`, `crm.DealStatus`; nuovo enum `DealStage`); (b) **niente migration EF**: il database si crea da zero dal modello con il tool `tools/Dusiburg.AI.O2C.DbInit` (drop + create, `EnsureCreated` per `erp` e `CreateTables` per `crm`), riusabile dalle fixture dei test; niente `dotnet-ef` né pacchetto Design; (c) modelli dati in librerie dedicate `src/Dusiburg.AI.O2C.Erp.Data` e `src/Dusiburg.AI.O2C.Crm.Data` (il tool non può referenziare i progetti web). Entrambe le regole (a) e (b) riportate nella skill `db-operations` (copia in `C:Dev.claude`, vedi D31) (2026-09-14) | 1, 4, 5 |
 | D31 | **Nomi di tabella al singolare** (utente, Gate F1): niente pluralizzazioni, la tabella si chiama come il singolo elemento riga (`erp.Order`, `erp.OrderStatus`, `crm.Deal`, `crm.DealStatus`, e in Fase 5 `orch.ApprovalRequest`); stesso nome nei check constraint (`CK_Order_Total`) e negli indici generati. Con EF il nome si imposta con `ToTable` (i `DbSet` restano al plurale nel codice). Le convenzioni D29–D31 stanno nella copia `C:\Dev\.claude\skills\db-operations\SKILL.md` (scelta dell'utente; nessuna modifica sotto `C:\DevOther`) (2026-09-14) | 1, 4, 5 |
+| D32 | **Dati demo, reset e accesso ai dati** (utente, Gate F1): (a) una sola tabella di scenari, `src/Dusiburg.AI.O2C.Shared/Demo/DemoCatalog.cs`, da cui nascono il seed dell'ERP e quello del CRM (coerenza verificata da `DemoCatalogTests`); (b) il seed lo esegue `DbInit` dopo la creazione del database (`--no-seed` per saltarlo); nessuna scrittura all'avvio dei servizi; (c) `POST /dev/reset`, solo in Development, su `Erp.Api` (ordini, clienti, prodotti, giacenze, numerazione ordini) e su `Crm.Mcp` (aziende, deal, note) per ripetere la demo; (d) i servizi accedono al database con l'integrazione Aspire EF Core SQL Server (tracce SQL, health check, retry: la creazione dell'ordine usa l'execution strategy); (e) errori HTTP come ProblemDetails con estensione `code` del catalogo `ToolErrorCodes` (`ToolProblems` in ServiceDefaults) (2026-09-14) | 1, 2 |
 
 ## Registro modifiche alla specifica
 
@@ -135,6 +136,7 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M16 | §8 | Convenzioni di chiave: PK `Id` numerica, niente PK GUID (`Order.PublicId`), chiavi di business come colonne univoche (`Sku`, `Code`) | D29 | ✅ Applicata in F1 (`docs/architettura.md`) |
 | M17 | §8, §10 | Enum persistiti come FK verso tabelle di lookup tinyint (`OrderStatus`, `DealStage`, `DealStatus`); schema creato da zero dal tool `tools/Dusiburg.AI.O2C.DbInit` senza migration; progetti `Erp.Data` e `Crm.Data` | D30 | ✅ Applicata in F1 (`docs/architettura.md`) |
 | M18 | §7, §8 | Nomi di tabella al singolare, senza pluralizzazioni (`Order`, `OrderStatus`, `Deal`, `ApprovalRequest`), anche nei check constraint | D31 | ✅ Applicata in F1 (`docs/architettura.md`) |
+| M19 | §8, §10 | Dati demo da una tabella unica (`Shared/Demo/DemoCatalog`) inseriti da `DbInit`; `POST /dev/reset` anche su `Erp.Api`; errori HTTP come ProblemDetails con `code` | D32 | ✅ Applicata in F1 (`docs/architettura.md`) |
 
 ## Convenzioni trasversali (valgono da Fase 0)
 

@@ -39,15 +39,15 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 **1.2 — Creazione del database** ✅ (2026-09-14, D30: niente migration)
 - Tool `tools/Dusiburg.AI.O2C.DbInit`: `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` cancella e ricrea il database (default `(localdb)\localdev`, `O2C`; oppure `ConnectionStrings__sql` o connection string come argomento), crea le tabelle di `erp` (`EnsureCreated`) e di `crm` (`CreateTables`) e popola le lookup dagli enum. Rifiuta server non LocalDB senza `--allow-non-local`.
 - La logica sta in `O2CDatabaseInitializer.RecreateAsync`, riusabile dalle fixture dei test (1.10).
-- Eseguito sul database `O2C` di `localdev`, senza seed, per la revisione dello schema.
-- Da fare con gli endpoint: registrazione dei DbContext in DI; niente creazione del database all'avvio dei servizi.
+- Il database `O2C` di `localdev` contiene schema e dati demo (1.3, 1.8).
+- I servizi registrano i DbContext con l'integrazione Aspire (`AddSqlServerDbContext`); nessuna creazione del database all'avvio.
 
-**1.3 — Seed deterministico** (idempotente: inserisce solo se le tabelle sono vuote)
+**1.3 — Seed deterministico** ✅ (2026-09-14) — idempotente (inserisce solo se le tabelle sono vuote); dati da `Shared/Demo/DemoCatalog.cs`, eseguito da `DbInit` (D32)
 - ≥ 20 prodotti con prezzi realistici.
 - 10 clienti: 1 bloccato (`IsBlocked = true`), partite IVA coerenti con le aziende del CRM tranne quella del "cliente nuovo".
 - Scorte miste: prodotti abbondanti, prodotti a zero, prodotti con giacenza bassa, lead time 2–30 giorni.
 
-**1.4 — Endpoint minimal API** (gruppo `/api`, errori come ProblemDetails con estensione `code` del catalogo `ToolErrorCodes`)
+**1.4 — Endpoint minimal API** ✅ (gruppo `/api`, errori come ProblemDetails con estensione `code` del catalogo `ToolErrorCodes`)
 
 | Endpoint | Comportamento |
 |----------|---------------|
@@ -57,21 +57,21 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 | `POST /api/orders` | vedi 1.5 |
 | `GET /api/orders/{orderId}` | 200 ordine con righe · 404 |
 
-**1.5 — Creazione ordine idempotente**
+**1.5 — Creazione ordine idempotente** ✅
 - In un'unica transazione: se esiste un ordine con la stessa `IdempotencyKey` → **200 con l'ordine esistente**; altrimenti valida cliente e SKU, calcola il totale dai prezzi delle righe (prezzo del deal, D21), inserisce ordine e righe, incrementa `Reserved` per ogni riga; `Status = Confirmed` se tutte le righe erano disponibili, altrimenti `Backorder` → 201.
 - Race condition: se l'insert viola l'indice univoco (`DbUpdateException` con errore SQL 2601/2627) → rileggere l'ordine esistente e restituirlo con 200.
 - `ExternalRef` = `dealId`.
 
-**1.6 — File `.http`**: `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` con tutti gli endpoint e un doppio POST con la stessa chiave.
+**1.6 — File `.http`** ✅: `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` con tutti gli endpoint e un doppio POST con la stessa chiave.
 
 ### CRM mock — `src/Dusiburg.AI.O2C.Crm.Mcp`
 
-**1.7 — Persistenza e client** (persistenza ✅ 2026-09-14; client da fare)
+**1.7 — Persistenza e client** ✅ (2026-09-14)
 - `CrmDbContext` schema `crm`, nella libreria `src/Dusiburg.AI.O2C.Crm.Data` (D30) referenziata da `Crm.Mcp`; convenzioni D29/D30: `Company` (`Id` int identity, `Code` univoco es. `C-01` = `companyId`, `Name`, `VatNumber`, `Email`, `Address`), `Deal` (`Id` int identity, `Code` univoco es. `D-1001` = `dealId`, `Name`, `Amount`, `Currency` char(3), `DealStageId` tinyint FK, `CompanyId` FK, `Revision`, `ErpOrderNumber`, `DealStatusId` tinyint FK nullable = stato O2C, `LastNote`, `UpdatedAt`), `DealLineItem` (`Id` int identity, `DealId` FK, `Sku` senza FK verso l'ERP, `Quantity`, `UnitPrice`), `DealNote` (`Id` int identity, `DealId` FK, `DealStatusId` tinyint FK, `ErpOrderNumber`, `Note`, `CreatedAt`: storico delle scritture di O2C, per audit), lookup `DealStage` (enum `DealStage`: `ContractSent` = 1, `ClosedWon` = 2, `ClosedLost` = 3) e `DealStatus` (enum `DealStatus` di `Shared`).
 - `ICrmClient` con `GetDealAsync`, `GetCompanyAsync`, `UpdateDealAsync`; implementazione `MockCrmClient` su EF. `UpdateDealAsync` **non** incrementa `Revision` (G1.3) e aggiunge una `DealNote`. Il contratto `get_deal` espone `stage` per nome (`DealStage.ToString()`).
 - Tabelle create da `tools/Dusiburg.AI.O2C.DbInit` insieme a quelle di `erp` (vedi 1.2), nessuna migration.
 
-**1.8 — Seed degli scenari demo** (D5; tutti i deal partono in stage `ContractSent`)
+**1.8 — Seed degli scenari demo** ✅ (D5, D32, dettaglio in `docs/demo.md`; tutti i deal partono in stage `ContractSent`)
 
 | Deal | Scenario | Esito atteso a regime (Fase 5) |
 |------|----------|-------------------------------|
@@ -84,7 +84,7 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 | D-1007 | Uno SKU inesistente in ERP | `Failed` |
 | D-1008 | Sopra soglia **e** cliente nuovo | Approvazione con più motivi |
 
-**1.9 — Endpoint dev** (solo in `Development`)
+**1.9 — Endpoint dev** ✅ (solo in `Development`; `POST /dev/reset` anche su `Erp.Api`, D32)
 - `GET /dev/deals`, `GET /dev/deals/{dealId}` (deal + righe + revision + stato O2C).
 - `POST /dev/deals/{dealId}/close-won` → stage `ClosedWon` (la pubblicazione sul broker arriva in Fase 4).
 - `POST /dev/reset` → ripristina i dati di scenario (deal, note; utile per ripetere la demo).
@@ -92,28 +92,28 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 
 ### Test
 
-**1.10 — `tests/Dusiburg.AI.O2C.Erp.Api.Tests`**
+**1.10 — ✅ `tests/Dusiburg.AI.O2C.Erp.Api.Tests`**
 - `WebApplicationFactory<Program>` con database di test dedicato su `(localdb)\localdev` (`O2C_Test_<guid>`, creato e cancellato dalla fixture).
 - Casi: giacenza SKU noto/sconosciuto; `available` con `Reserved` > 0; creazione cliente e duplicato (409); ricerca cliente per partita IVA ed email; ordine felice (totale, stato, riserva); **doppio POST con stessa chiave → stesso `orderId`, una sola riga in `Order`**; **POST paralleli con stessa chiave → un solo ordine**; validazioni (400).
 
-**1.11 — `tests/Dusiburg.AI.O2C.Mcp.Tests` (parte CRM)**
+**1.11 — ✅ `tests/Dusiburg.AI.O2C.Mcp.Tests` (parte CRM)**
 - `MockCrmClient` su DB di test: lettura deal con righe e revision; `UpdateDealAsync` non cambia `Revision` e scrive una nota; reset.
 
 ## Criteri di accettazione
 
-- [ ] Da `.http`: creato un ordine su `Erp.Api` con `OrderNumber` valorizzato; giacenza letta correttamente.
-- [ ] Doppio POST con la stessa `IdempotencyKey` → stesso ordine, nessun duplicato.
-- [ ] `GET /dev/deals/D-1001` restituisce il deal con righe e `revision`.
-- [ ] Nel dashboard Aspire la traccia del `POST /api/orders` porta `correlation.id`.
-- [ ] Nessun agente coinvolto.
-- [ ] DoD comune soddisfatta.
+- [x] Da `.http`: creato un ordine su `Erp.Api` con `OrderNumber` valorizzato; giacenza letta correttamente.
+- [x] Doppio POST con la stessa `IdempotencyKey` → stesso ordine, nessun duplicato.
+- [x] `GET /dev/deals/D-1001` restituisce il deal con righe e `revision`.
+- [x] Nel dashboard Aspire la traccia del `POST /api/orders` porta `correlation.id`.
+- [x] Nessun agente coinvolto.
+- [x] DoD comune soddisfatta.
 
 ## Rischi
 
 | Rischio | Mitigazione |
 |---------|-------------|
-| Test lenti o instabili con LocalDB | Un DB per classe di test, creazione con `EnsureCreated`/migrazioni una volta per fixture |
-| Dati di seed non allineati tra ERP e CRM | Seed dei due sistemi generato da una tabella di scenari unica, documentata nel README di demo |
+| Test lenti o instabili con LocalDB | Un DB per classe di test (`O2C_Test_<guid>`), creato con `O2CDatabaseInitializer` una volta per fixture e riportato al seed prima di ogni test |
+| Dati di seed non allineati tra ERP e CRM | Seed dei due sistemi generato da una tabella di scenari unica (`DemoCatalog`), documentata in `docs/demo.md` e verificata da `DemoCatalogTests` |
 
 ## Definition of Done
 
@@ -121,4 +121,32 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 
 ## Esito
 
-_Da compilare a fine fase._
+**Completata il 2026-09-14** — branch `develop` di `C:\Dev\NetCode\AI.POC-OrderToCash`, modifiche non committate (il commit lo fa l'utente).
+
+### Verifiche
+| Criterio | Evidenza |
+|----------|----------|
+| Build | `dotnet build Dusiburg.AI.O2C.slnx` → 0 avvisi, 0 errori |
+| Test | `dotnet test --solution Dusiburg.AI.O2C.slnx` → 86/86; `Erp.Api.Tests` e `Mcp.Tests` su database dedicati `O2C_Test_<guid>`, cancellati a fine classe |
+| Ordine via HTTP | AppHost avviato; `POST /api/orders` per D-1001 → 201, `SO-2026-000001`, totale 1.485,00, `Confirmed`; `GET /api/stock/IND-BRG-001` → 440 disponibili dopo la riserva di 40 |
+| Idempotenza | secondo `POST` con `o2c-D-1001-r1` → 200 e stesso `orderId`, una sola riga in `erp.[Order]`; nei test 8 POST paralleli con la stessa chiave → un solo ordine |
+| CRM | `GET /dev/deals/D-1001` → deal con 4 righe, `revision: 1`, stage `ContractSent` |
+| Correlazione | API di telemetria del dashboard: i due span `POST /api/orders` di `erp-api` (201 e 200) hanno `correlation.id = fase1-accettazione-001` |
+| Agenti | nessuno |
+
+### Cosa è stato fatto
+- Modello dati nelle librerie `Erp.Data` e `Crm.Data`, database creato da `tools/Dusiburg.AI.O2C.DbInit` senza migration (D30), convenzioni D29–D31.
+- Dati demo da `Shared/Demo/DemoCatalog.cs` (22 prodotti, 10 clienti di cui uno bloccato, 8 aziende, 8 deal): seed con `DbInit`, reset con `POST /dev/reset` su Erp.Api e Crm.Mcp (D32); scenari in `docs/demo.md`.
+- `Erp.Api`: `/api/customers`, `/api/stock/{sku}`, `/api/orders`, `/api/orders/{orderId}`. `OrderService`: transazione dentro l'execution strategy, numero ordine da `erp.OrderNumberSeq`, riserva dello stock con `UPDATE` atomico, corsa sulla stessa chiave (errori SQL 2601/2627) risolta restituendo l'ordine esistente.
+- `Crm.Mcp`: `ICrmClient` e `MockCrmClient` (`UpdateDealAsync` non cambia `Revision` e scrive una `DealNote`), endpoint dev.
+- Errori come ProblemDetails con estensione `code` (`ToolProblems` in ServiceDefaults), anche per quelli generati dal framework.
+- File `.http` per ERP e CRM, README e specifica aggiornati (M19).
+
+### Scostamenti e note
+- L'`orderId` dei contratti è la colonna `erp.Order.PublicId` (GUID); gli id numerici restano interni (D29). Un cliente creato da API nasce con `CreditLimit` 0 e non bloccato.
+- `GET /api/customers` con partita IVA ed email: vale prima la partita IVA, poi l'email. Cliente o SKU sconosciuti su `POST /api/orders` → 404 `NOT_FOUND`.
+- `close-won` non cambia la revisione: lo stage non è una modifica commerciale (G1.3).
+- Dal dashboard è emerso un avviso EF sul dettaglio dev del deal (due collection nella stessa query): corretto con `AsSplitQuery()`.
+- Limite noto: se una richiesta finisce in un 500 gestito da `UseExceptionHandler`, l'header `x-correlation-id` impostato dal middleware viene rimosso con la pulizia della risposta (lo span conserva comunque `correlation.id`).
+- Dopo le verifiche il database `O2C` di sviluppo è stato ricreato con `DbInit`: contiene solo i dati demo.
+
