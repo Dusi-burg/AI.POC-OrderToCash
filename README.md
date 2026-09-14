@@ -11,14 +11,14 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 
 | Percorso | Ruolo |
 |----------|-------|
-| `src/AppHost` | .NET Aspire: composizione locale di tutti i servizi |
-| `src/ServiceDefaults` | OpenTelemetry, health check, service discovery, resilienza, correlation id |
-| `src/Erp.Api` | Minimal API + EF Core: l'ERP mock |
-| `src/Erp.Mcp` | Server MCP sopra `Erp.Api` |
-| `src/Crm.Mcp` | Server MCP con il CRM mock |
-| `src/Orchestrator` | Worker: agenti, handoff, policy di approvazione |
-| `src/Approvals.Web` | UI delle approvazioni |
-| `src/Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
+| `src/Dusiburg.AI.O2C.AppHost` | .NET Aspire: composizione locale di tutti i servizi |
+| `src/Dusiburg.AI.O2C.ServiceDefaults` | OpenTelemetry, health check, service discovery, resilienza, correlation id |
+| `src/Dusiburg.AI.O2C.Erp.Api` | Minimal API + EF Core: l'ERP mock |
+| `src/Dusiburg.AI.O2C.Erp.Mcp` | Server MCP sopra `Erp.Api` |
+| `src/Dusiburg.AI.O2C.Crm.Mcp` | Server MCP con il CRM mock |
+| `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agenti, handoff, policy di approvazione |
+| `src/Dusiburg.AI.O2C.Approvals.Web` | UI delle approvazioni |
+| `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
 | `tests/*` | xUnit v3 (Microsoft.Testing.Platform) |
 
 ## Prerequisiti
@@ -46,16 +46,16 @@ Senza sessioni aperte, WSL spegne la propria VM dopo pochi secondi e con lei Doc
 Nessun segreto nel repository: i valori stanno negli **user-secrets dell'AppHost**, che li passa ai servizi.
 
 ```powershell
-dotnet user-secrets --project src/AppHost set "ConnectionStrings:sql" "Server=(localdb)\localdev;Database=O2C;Trusted_Connection=True;TrustServerCertificate=True"
-dotnet user-secrets --project src/AppHost set "ConnectionStrings:rabbitmq" "amqp://o2c:<password>@localhost:5672/o2c"
-dotnet user-secrets --project src/AppHost set "Parameters:erp-mcp-api-key" "<valore casuale>"
-dotnet user-secrets --project src/AppHost set "Parameters:crm-mcp-api-key" "<valore casuale>"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "ConnectionStrings:sql" "Server=(localdb)\localdev;Database=O2C;Trusted_Connection=True;TrustServerCertificate=True"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "ConnectionStrings:rabbitmq" "amqp://o2c:<password>@localhost:5672/o2c"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:erp-mcp-api-key" "<valore casuale>"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:crm-mcp-api-key" "<valore casuale>"
 ```
 
 ## Avvio
 
 ```powershell
-dotnet run --project src/AppHost
+dotnet run --project src/Dusiburg.AI.O2C.AppHost
 ```
 
 L'URL del dashboard Aspire (con token di login) viene stampato in console.
@@ -69,7 +69,7 @@ dotnet dev-certs https --trust
 In alternativa si può avviare in HTTP:
 
 ```powershell
-$env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/AppHost --launch-profile http
+$env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusiburg.AI.O2C.AppHost --launch-profile http
 ```
 
 | Servizio | URL locale |
@@ -85,8 +85,8 @@ Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in De
 ## Build e test
 
 ```powershell
-dotnet build O2C.slnx   # warning trattati come errori
-dotnet test --solution O2C.slnx   # xUnit v3 su Microsoft.Testing.Platform
+dotnet build Dusiburg.AI.O2C.slnx   # warning trattati come errori
+dotnet test --solution Dusiburg.AI.O2C.slnx   # xUnit v3 su Microsoft.Testing.Platform
 ```
 
 ## Convenzioni trasversali
@@ -94,5 +94,5 @@ dotnet test --solution O2C.slnx   # xUnit v3 su Microsoft.Testing.Platform
 - **Correlazione**: header `x-correlation-id` su ogni chiamata HTTP/MCP, letto o generato (GUID v7) dal middleware `UseCorrelationId()`, propagato in uscita da `CorrelationIdDelegatingHandler`, esposto come attributo `correlation.id` su span e scope di log.
 - **Idempotenza**: `IdempotencyKey.From(dealId, revision)` → `o2c-D-1001-r3`, calcolata dal codice e mai dal modello.
 - **Errori dei tool**: sempre `{ "error": { "code", "message" } }`, codici in `ToolErrorCodes`.
-- **Telemetria**: sorgenti `O2C.*`, attributi `agent.name`, `tool.name`, `correlation.id`, `tool.outcome`.
+- **Telemetria**: sorgenti `Dusiburg.AI.O2C.*`, attributi `agent.name`, `tool.name`, `correlation.id`, `tool.outcome`.
 - **Segreti**: solo user-secrets in locale.

@@ -41,7 +41,7 @@ Esito dello spike → breve nota nella sezione "Esito" e, se servono, aggiorname
 - Filtro sulle chiamate ai tool: apre lo span `mcp.tool {tool.name}` sull'`ActivitySource` del server con `tool.name`, `correlation.id`, `tool.outcome` (`ok`/`error:<code>`); intercetta eccezioni non gestite → `ToolError(INTERNAL)` (§6: mai eccezioni non gestite); log strutturato di ogni chiamata.
 - Correlazione: `x-correlation-id` letto dall'header HTTP (già gestito dal middleware di Fase 0).
 
-**2.2 — `src/Erp.Mcp`**
+**2.2 — `src/Dusiburg.AI.O2C.Erp.Mcp`**
 - `ErpApiClient` (HttpClient tipizzato verso `https+http://erp-api` via service discovery, con `CorrelationIdDelegatingHandler`): mappa ProblemDetails e codici HTTP su `ToolError` (404 → `NOT_FOUND`, 400 → `VALIDATION_ERROR`, 409 → `CONFLICT`, 5xx/timeout → `UPSTREAM_UNAVAILABLE`).
 - `ErpTools` con i 5 tool di §6.1, descrizioni pensate per il modello (vincoli espliciti, es. "fornire almeno uno fra vatNumber ed email"):
   - `get_customer` → cliente oppure `null` se non trovato (come da contratto, non errore); `VALIDATION_ERROR` se mancano entrambi i parametri;
@@ -51,7 +51,7 @@ Esito dello spike → breve nota nella sezione "Esito" e, se servono, aggiorname
   - `get_order` → ordine completo con righe.
 - AppHost: `Erp.Mcp` referenzia `Erp.Api`; parametro `ERP_MCP_API_KEY`.
 
-**2.3 — `src/Crm.Mcp`**
+**2.3 — `src/Dusiburg.AI.O2C.Crm.Mcp`**
 - `CrmTools` con i 3 tool di §6.2 sopra `ICrmClient`:
   - `get_deal` → contratto §6.2 **+ `revision`** (M3);
   - `get_company`;
@@ -62,7 +62,7 @@ Esito dello spike → breve nota nella sezione "Esito" e, se servono, aggiorname
 **2.4 — Configurazione per i client**
 - Documentare nel README: URL `http://localhost:5102/mcp` (ERP) e `http://localhost:5103/mcp` (CRM), header `X-Api-Key`, `x-correlation-id`.
 
-### Test — `tests/Mcp.Tests`
+### Test — `tests/Dusiburg.AI.O2C.Mcp.Tests`
 
 **2.5 — Harness**
 - `WebApplicationFactory` per `Erp.Mcp` (con `Erp.Api` sostituito da un `HttpMessageHandler` stub) e per `Crm.Mcp` (DB di test su `localdev`); client MCP costruito sull'`HttpClient` della factory.

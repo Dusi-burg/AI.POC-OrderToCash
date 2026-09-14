@@ -35,14 +35,14 @@ Verificare sulle versioni NuGet correnti (`Microsoft.Agents.AI*`, `Microsoft.Ext
 
 ## Step operativi
 
-**3.1 — `ModelClientFactory`** (`src/Orchestrator/Model/`)
+**3.1 — `ModelClientFactory`** (`src/Dusiburg.AI.O2C.Orchestrator/Model/`)
 - Legge `MODEL_PROVIDER` (`azure-openai` | `ollama`); valore sconosciuto → errore all'avvio.
 - `azure-openai`: `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT`, autenticazione secondo G3.2.
 - `ollama`: `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`.
 - Pipeline `IChatClient` comune: OpenTelemetry + logging; temperatura 0.1 di default (§5).
 - L'orchestratore dipende solo da `IChatClient` (§3.3): nessun tipo Azure OpenAI fuori dalla factory.
 
-**3.2 — `McpToolProvider`** (`src/Orchestrator/Tools/`)
+**3.2 — `McpToolProvider`** (`src/Dusiburg.AI.O2C.Orchestrator/Tools/`)
 - Crea i client MCP verso `ERP_MCP_URL` e `CRM_MCP_URL` (da service discovery sotto AppHost, da configurazione in modalità CLI), con header `X-Api-Key` e un handler che aggiunge `x-correlation-id` dal contesto ambientale del run.
 - Espone i tool con nome qualificato interno (`erp.create_order`, `crm.get_deal`, …) e filtra per **allow-list dell'agente**.
 
@@ -57,7 +57,7 @@ Verificare sulle versioni NuGet correnti (`Microsoft.Agents.AI*`, `Microsoft.Ext
 - Output finale strutturato `OrderOutcome { dealId, status: DealStatus, erpOrderNumber?, reasons[], note }` validato contro JSON schema; output non conforme → un nuovo tentativo, poi `Failed`.
 
 **3.5 — Riga di comando**
-- `dotnet run --project src/Orchestrator -- process --deal D-1001` (G3.4): crea un nuovo `CorrelationId`, apre l'`Activity` radice `o2c.process_deal`, esegue l'agente, stampa l'`OrderOutcome`, exit code ≠ 0 su `Failed`.
+- `dotnet run --project src/Dusiburg.AI.O2C.Orchestrator -- process --deal D-1001` (G3.4): crea un nuovo `CorrelationId`, apre l'`Activity` radice `o2c.process_deal`, esegue l'agente, stampa l'`OrderOutcome`, exit code ≠ 0 su `Failed`.
 - Senza argomenti: modalità worker (per ora solo heartbeat; il consumer arriva in Fase 4).
 
 **3.6 — Configurazione**
@@ -66,7 +66,7 @@ Verificare sulle versioni NuGet correnti (`Microsoft.Agents.AI*`, `Microsoft.Ext
 **3.7 — Smoke Ollama (opzionale, G3.5)**
 - Stessa CLI con `MODEL_PROVIDER=ollama`: si verifica solo che il cambio sia di sola configurazione; nessun criterio di accettazione.
 
-### Test — `tests/Orchestrator.Tests`
+### Test — `tests/Dusiburg.AI.O2C.Orchestrator.Tests`
 
 **3.8 — Harness**
 - `StubChatClient` con copione di risposte (sequenza di chiamate a funzione, poi JSON finale); tool fake come `AIFunction` in memoria. Nessuna chiamata reale né al modello né ai server MCP.

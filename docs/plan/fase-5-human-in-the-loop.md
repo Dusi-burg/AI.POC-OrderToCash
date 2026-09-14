@@ -37,7 +37,7 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 
 ## Step operativi
 
-**5.1 — `ApprovalPolicy`** (`src/Orchestrator/Governance/`)
+**5.1 — `ApprovalPolicy`** (`src/Dusiburg.AI.O2C.Orchestrator/Governance/`)
 - Input: righe proposte (il totale lo calcola la policy, non il modello), `FulfillmentAssessment`, dati cliente (`IsBlocked`, `CustomerCreatedInThisRun`), soglia `APPROVAL_THRESHOLD_EUR` (default 10000).
 - Output: `ApprovalDecision { Required, Reasons[] }` con `ApprovalReason` = `OverThreshold` (totale **>** soglia) · `InsufficientStock` · `NewCustomer` · `BlockedCustomer`.
 - Unica fonte delle regole (§12 "policy esplicita e centralizzata"); i prompt non contengono soglie.
@@ -47,10 +47,10 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 - L'host chiama `update_deal(ApprovalPending)` con i motivi; il run termina; il messaggio viene confermato (ack). Nulla resta in memoria.
 - `IsBlocked`: le istruzioni di `OrderAgent` chiedono di proporre comunque l'ordine (l'approvazione è l'unica strada, §7).
 
-**5.3 — Tabella `ApprovalRequests`** (`src/Orchestration.Data`)
+**5.3 — Tabella `ApprovalRequests`** (`src/Dusiburg.AI.O2C.Orchestration.Data`)
 - Campi di §7 + `RowVersion`, `TraceParent`, `Reasons` (JSON); indice `(Status, RequestedAt)`; migrazione `AddApprovals`.
 
-**5.4 — `src/Approvals.Web`**
+**5.4 — `src/Dusiburg.AI.O2C.Approvals.Web`**
 - Pagine: `/approvals` (pendenti, filtro "tutte"), `/approvals/{id}` (payload leggibile: cliente, righe, totale, motivi, link al deal dev).
 - Azioni Approva/Rifiuta con nota facoltativa; `DecidedBy` dall'approvatore configurato (`Approvals:ApproverUpn`, D25).
 - Endpoint di callback unico `POST /api/approvals/{id}/decision` `{ decision, note }`, usato dalla UI e in futuro da Teams.
@@ -74,7 +74,7 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 **5.8 — README di demo** (D5)
 - Script passo-passo per D-1001…D-1008 con esiti attesi, reset dei dati, dove guardare nel dashboard.
 
-### Test — `tests/Orchestrator.Tests`
+### Test — `tests/Dusiburg.AI.O2C.Orchestrator.Tests`
 
 **5.9 — Casi**
 - `ApprovalPolicy`: ogni regola da sola, combinazioni, confine esatto 10.000 € (non scatta), soglia da configurazione.

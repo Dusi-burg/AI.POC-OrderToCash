@@ -92,7 +92,7 @@ flowchart LR
 | D11 | `MODEL_PROVIDER=azure-openai` di default | 3 |
 | D12 | Provider Ollama implementato ma solo smoke test su modello piccolo; nessuna accettazione dipende dal modello locale | 3 |
 | D13 | Ogni fase che usa Agent Framework / MCP SDK inizia con uno **spike di verifica API**; divergenze → equivalente + aggiornamento specifica | 2–5 |
-| D14 | Test con **xUnit v3**; progetto aggiuntivo `tests/Mcp.Tests` | 0, 2 |
+| D14 | Test con **xUnit v3**; progetto aggiuntivo `tests/Dusiburg.AI.O2C.Mcp.Tests` | 0, 2 |
 | D15 | git: istanza di **Fork** (2.50.1, nel PATH utente); repo **`C:\Dev\NetCode\AI.POC-OrderToCash`** (clone di `github.com/Dusi-burg/AI.POC-OrderToCash`), branch `develop`, **solo commit locali — il push lo fa l'utente** (rivista al Gate F0, 2026-09-14) | 0 |
 | D16 | Ripresa dopo approvazione: spike su **(A) checkpointing nativo** del workflow persistito su SQL; fallback **(B) resume deterministico** dalla proposta persistita | 5 |
 | D17 | `ApprovalPolicy` deterministica in C#; **`idempotencyKey` e `CorrelationId` calcolati e iniettati dal codice, mai generati dal modello** | 3, 5 |
@@ -105,6 +105,7 @@ flowchart LR
 | D24 | Scadenza: hosted service nell'Orchestrator → `Expired` + `update_deal` + log (nessuna email) | 5 |
 | D25 | Approvatore da configurazione in locale (`DecidedBy`); Entra/Teams in Fase 6; regole "non chiedere più" fuori scope | 5, 6 |
 | D26 | WSL spegne la VM (e Docker) pochi secondi dopo l'ultima sessione: l'AppHost tiene aperta una sessione con la risorsa eseguibile `rabbitmq-wsl` (`wsl -d Ubuntu-26.04 -- docker start --attach rabbitmq`). Nessuna configurazione di macchina né script al riavvio; il broker è attivo solo mentre gira l'AppHost (Gate F0, 2026-09-14) | 0, 4 |
+| D27 | Root name **`Dusiburg.AI.O2C`**: progetti, cartelle, assembly e namespace si chiamano `Dusiburg.AI.O2C.<Nome>` (es. `src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj`), solution `Dusiburg.AI.O2C.slnx`, sorgenti di telemetria `Dusiburg.AI.O2C.*`. Restano invariati i valori di dominio (`o2c-…` della chiave di idempotenza, vhost `o2c`, database `O2C`) e i nomi delle risorse Aspire (`erp-api`, …). Correzione di G0.4 chiesta dall'utente dopo la Fase 0 (2026-09-14) | tutte |
 
 ## Registro modifiche alla specifica
 
@@ -116,31 +117,32 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M2 | §3.1, §8, §9 | Persistenza locale: LocalDB `(localdb)\localdev` invece di SQLite; schemi `erp`/`crm`/`orch` | D9, D18 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M3 | §6.2 | `get_deal` → output con `revision` | D19 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M4 | §6.2 | `update_deal.status` enum chiuso | D23 | ✅ Applicata in F0 (`docs/architettura.md`) |
-| M5 | §10 | Progetto `tests/Mcp.Tests` | D14 | ✅ Applicata in F0 (`docs/architettura.md`) |
+| M5 | §10 | Progetto `tests/Dusiburg.AI.O2C.Mcp.Tests` | D14 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M6 | §10 | CRM mock dentro `Crm.Mcp` dietro `ICrmClient` | D10 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M7 | §3.1, §9 | Messaggistica locale: RabbitMQ (exchange `deal-closed-won`) | D6 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M8 | §7, §13 | Nome/semantica del meccanismo di approvazione (`ToolApprovalAgent`) da confermare dopo lo spike | D13 | Da decidere in F5 |
 | M9 | §5, §7 | Regole di dominio: parziale/bloccato, solo EUR, prezzo del deal, riserva stock | D20–D22 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Gate F3 | Da decidere in F3 |
-| M11 | §10 | Eventuale progetto `src/Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web) | Gate F4 | Da decidere in F4 |
+| M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web) | Gate F4 | Da decidere in F4 |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequests` | Gate F5 | Da decidere in F5 |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F6 | Da decidere in F6 |
 | M14 | §10 | Repository `AI.POC-OrderToCash` invece di `o2c-agentic-poc` | Gate F0 (D15) | ✅ Applicata in F0 (`docs/architettura.md`) |
+| M15 | §10 | Cartelle e progetti con root name `Dusiburg.AI.O2C.<Nome>` | D27 | ✅ Applicata dopo F0 (`docs/architettura.md`) |
 
 ## Convenzioni trasversali (valgono da Fase 0)
 
 - **Correlazione**: header `x-correlation-id` su ogni HTTP/MCP; attributo `correlation.id` su span e scope di log; header omonimo sui messaggi del broker. Generato una sola volta all'ingresso del workflow (GUID v7).
 - **Idempotenza**: `IdempotencyKey.From(dealId, revision)`, calcolata dal codice e iniettata nella chiamata `create_order`; garanzia finale = indice univoco su `erp.Orders.IdempotencyKey`.
-- **Tracing**: ogni tool call produce uno span con `agent.name`, `tool.name`, `correlation.id`, `tool.outcome` + durata; prefisso `ActivitySource` `O2C.*`.
+- **Tracing**: ogni tool call produce uno span con `agent.name`, `tool.name`, `correlation.id`, `tool.outcome` + durata; prefisso `ActivitySource` `Dusiburg.AI.O2C.*`.
 - **Errori dei tool**: sempre `{ error: { code, message } }`; catalogo codici: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL`.
 - **Segreti**: solo user-secrets in locale (AppHost e progetti), mai nel repo; controllo con grep prima di ogni commit.
 - **Porte fisse locali** (comode per CLI e `.http`): Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104.
-- **Build di verifica**: la solution è nuova e non è nella mappa della skill `verify-build`: l'equivalente è `dotnet build O2C.slnx` sull'intera solution (mai singoli progetti come verifica finale).
+- **Build di verifica**: la solution è nuova e non è nella mappa della skill `verify-build`: l'equivalente è `dotnet build Dusiburg.AI.O2C.slnx` sull'intera solution (mai singoli progetti come verifica finale).
 
 ## Definition of Done comune a ogni fase
 
-1. `dotnet build O2C.slnx` — 0 errori, 0 warning (warning trattati come errori).
-2. `dotnet test --solution O2C.slnx` — tutti verdi (Microsoft.Testing.Platform).
+1. `dotnet build Dusiburg.AI.O2C.slnx` — 0 errori, 0 warning (warning trattati come errori).
+2. `dotnet test --solution Dusiburg.AI.O2C.slnx` — tutti verdi (Microsoft.Testing.Platform).
 3. Criteri di accettazione della fase verificati; esito annotato nel file di fase (sezione "Esito").
 4. Nessun segreto nel repo.
 5. Commit git con messaggio `fase N: <sintesi>`.

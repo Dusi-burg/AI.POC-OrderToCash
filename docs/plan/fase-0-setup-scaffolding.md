@@ -17,7 +17,7 @@ Nessuna fase precedente.
 | G0.1 | Dove vive la specifica aggiornata col registro modifiche M1–M9? | Copiarla nel repo come `docs/architettura.md` (versionata, fonte di verità da qui in poi); il file in `C:\Dev\Architettura` resta come snapshot iniziale |
 | G0.2 | RabbitMQ: credenziali `guest` o utente dedicato? | Vhost `o2c` + utente `o2c` dedicato, credenziali in user-secrets |
 | G0.3 | git: aggiungere l'istanza di Fork al PATH utente o usare il path assoluto? | Aggiungere `...\Fork\gitInstance\2.50.1\cmd` al PATH utente; verificare `user.name`/`user.email` |
-| G0.4 | Naming: `AssemblyName`/`RootNamespace` con prefisso `O2C.` (es. `O2C.Erp.Api`), cartelle come §10? | Sì |
+| G0.4 | Naming: root name `Dusiburg.AI.O2C` per progetti, cartelle, assembly e namespace (es. `src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj`)? | Sì |
 | G0.5 | Warning trattati come errori fin da subito? | Sì |
 | G0.6 | Versione Aspire | Ultima stabile compatibile con net10.0, verificata all'avvio della fase |
 
@@ -29,7 +29,7 @@ Nessuna fase precedente.
 | G0.1 | Proposta accettata (`docs/architettura.md`) |
 | G0.2 | Proposta accettata: vhost `o2c` + utente `o2c`, password casuale solo in user-secrets (sul broker esistono già `admin` e `app`, non toccati) |
 | G0.3 | Già fatto dall'utente: Fork git nel PATH utente, `user.name`/`user.email` impostati |
-| G0.4 | Proposta accettata |
+| G0.4 | Root name `Dusiburg.AI.O2C` (D27): applicato con la rinomina successiva al commit di fase, vedi Esito |
 | G0.5 | Proposta accettata |
 | G0.6 | Aspire **13.5.3** (ultima stabile al 2026-09-14); SDK .NET installato 10.0.401 |
 
@@ -63,27 +63,27 @@ Nessuna fase precedente.
 
 **0.2 — File di build condivisi**
 - `global.json`: SDK `10.0.400`, `rollForward: latestFeature`.
-- `Directory.Build.props`: `TargetFramework=net10.0`, `Nullable=enable`, `ImplicitUsings=enable`, `TreatWarningsAsErrors=true`, `AnalysisLevel=latest`, prefisso `O2C.` su `AssemblyName`/`RootNamespace`.
+- `Directory.Build.props`: `TargetFramework=net10.0`, `Nullable=enable`, `ImplicitUsings=enable`, `TreatWarningsAsErrors=true`, `AnalysisLevel=latest` (assembly e namespace coincidono con il nome del progetto `Dusiburg.AI.O2C.<Nome>`).
 - `Directory.Packages.props`: `ManagePackageVersionsCentrally=true`; versioni fissate qui.
 
-**0.3 — Solution `O2C.slnx`** (`dotnet new sln --format slnx`)
+**0.3 — Solution `Dusiburg.AI.O2C.slnx`** (`dotnet new sln --format slnx`)
 
 | Progetto | Template | Note |
 |----------|----------|------|
-| `src/AppHost` | Aspire AppHost | composizione locale |
-| `src/ServiceDefaults` | Aspire ServiceDefaults | OTel, health, discovery, resilienza |
-| `src/Erp.Api` | web (minimal API) | |
-| `src/Erp.Mcp` | web | |
-| `src/Crm.Mcp` | web | |
-| `src/Orchestrator` | worker | |
-| `src/Approvals.Web` | web (Razor Pages) | |
-| `src/Shared` | classlib | nessuna dipendenza da ASP.NET/EF |
-| `tests/Erp.Api.Tests` | xUnit v3 | |
-| `tests/Mcp.Tests` | xUnit v3 | D14 |
-| `tests/Orchestrator.Tests` | xUnit v3 | include i test degli helper di `Shared` |
+| `src/Dusiburg.AI.O2C.AppHost` | Aspire AppHost | composizione locale |
+| `src/Dusiburg.AI.O2C.ServiceDefaults` | Aspire ServiceDefaults | OTel, health, discovery, resilienza |
+| `src/Dusiburg.AI.O2C.Erp.Api` | web (minimal API) | |
+| `src/Dusiburg.AI.O2C.Erp.Mcp` | web | |
+| `src/Dusiburg.AI.O2C.Crm.Mcp` | web | |
+| `src/Dusiburg.AI.O2C.Orchestrator` | worker | |
+| `src/Dusiburg.AI.O2C.Approvals.Web` | web (Razor Pages) | |
+| `src/Dusiburg.AI.O2C.Shared` | classlib | nessuna dipendenza da ASP.NET/EF |
+| `tests/Dusiburg.AI.O2C.Erp.Api.Tests` | xUnit v3 | |
+| `tests/Dusiburg.AI.O2C.Mcp.Tests` | xUnit v3 | D14 |
+| `tests/Dusiburg.AI.O2C.Orchestrator.Tests` | xUnit v3 | include i test degli helper di `Shared` |
 
 **0.4 — ServiceDefaults**
-- `AddServiceDefaults()`: OpenTelemetry (tracce, metriche, log) con exporter OTLP da `OTEL_EXPORTER_OTLP_ENDPOINT`, `AddSource("O2C.*")`; health check `/health` e `/alive`; service discovery; `AddStandardResilienceHandler` sugli HttpClient.
+- `AddServiceDefaults()`: OpenTelemetry (tracce, metriche, log) con exporter OTLP da `OTEL_EXPORTER_OTLP_ENDPOINT`, `AddSource("Dusiburg.AI.O2C.*")`; health check `/health` e `/alive`; service discovery; `AddStandardResilienceHandler` sugli HttpClient.
 - Middleware `UseCorrelationId()`: legge o genera `x-correlation-id`, lo mette nel contesto ambientale, nell'`Activity` corrente (tag e baggage `correlation.id`) e in uno scope di log; lo rimanda nella risposta.
 - `CorrelationIdDelegatingHandler` per gli HttpClient in uscita.
 
@@ -93,7 +93,7 @@ Nessuna fase precedente.
 - `Errors/`: `ToolError(string Code, string Message)`, envelope `ToolErrorResponse { error }`, costanti `ToolErrorCodes`.
 - `Contracts/Erp/` e `Contracts/Crm/`: record che rispecchiano gli input/output di §6 (con `revision` in `DealDto`, M3).
 - `DealStatus` enum (D23), `OrderStatus` enum (`Confirmed`, `Backorder`).
-- `Telemetry/O2CTelemetry`: nomi delle `ActivitySource` (`O2C.Orchestrator`, `O2C.Mcp.Erp`, `O2C.Mcp.Crm`, `O2C.Erp.Api`, `O2C.Approvals`) e chiavi degli attributi (`agent.name`, `tool.name`, `correlation.id`, `tool.outcome`).
+- `Telemetry/O2CTelemetry`: nomi delle `ActivitySource` (`Dusiburg.AI.O2C.Orchestrator`, `Dusiburg.AI.O2C.Mcp.Erp`, `Dusiburg.AI.O2C.Mcp.Crm`, `Dusiburg.AI.O2C.Erp.Api`, `Dusiburg.AI.O2C.Approvals`) e chiavi degli attributi (`agent.name`, `tool.name`, `correlation.id`, `tool.outcome`).
 
 **0.6 — AppHost**
 - `builder.AddConnectionString("sql")` e `builder.AddConnectionString("rabbitmq")` (valori in user-secrets dell'AppHost: `ConnectionStrings:sql`, `ConnectionStrings:rabbitmq`).
@@ -120,16 +120,16 @@ Nessuna fase precedente.
 
 ## Test
 
-- Unit test degli helper (0.8) in `tests/Orchestrator.Tests/Shared/`.
+- Unit test degli helper (0.8) in `tests/Dusiburg.AI.O2C.Orchestrator.Tests/Shared/`.
 
 ## Criteri di accettazione
 
 - [x] `git --version` funziona da PowerShell senza path assoluto.
 - [x] `sqllocaldb info localdev` mostra l'istanza in esecuzione.
 - [x] RabbitMQ raggiungibile da Windows sulla 5672 con l'utente `o2c` sul vhost `o2c`.
-- [x] `dotnet build O2C.slnx` senza errori né warning.
-- [x] `dotnet test --solution O2C.slnx` verde.
-- [x] `dotnet run --project src/AppHost`: il dashboard Aspire mostra Erp.Api, Erp.Mcp, Crm.Mcp, Orchestrator e Approvals.Web in stato Running/Healthy.
+- [x] `dotnet build Dusiburg.AI.O2C.slnx` senza errori né warning.
+- [x] `dotnet test --solution Dusiburg.AI.O2C.slnx` verde.
+- [x] `dotnet run --project src/Dusiburg.AI.O2C.AppHost`: il dashboard Aspire mostra Erp.Api, Erp.Mcp, Crm.Mcp, Orchestrator e Approvals.Web in stato Running/Healthy.
 - [x] Nel dashboard è visibile una traccia di una richiesta HTTP con attributo `correlation.id`.
 - [x] Nessun segreto nel repo; primo commit eseguito.
 
@@ -158,9 +158,9 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 ### Verifiche
 | Criterio | Evidenza |
 |----------|----------|
-| Build | `dotnet build O2C.slnx` → 0 avvisi, 0 errori |
-| Test | `dotnet test --solution O2C.slnx` → 41/41 (Orchestrator.Tests 32, Mcp.Tests 6, Erp.Api.Tests 3) |
-| AppHost | `/health` 200 su 5101–5104; tutte e 5 le risorse inviano telemetria al dashboard; log `O2C.Orchestrator heartbeat` presente. Verificato via API di telemetria del dashboard (`/api/telemetry/resources`, `/traces`, `/logs`), non a vista nella UI |
+| Build | `dotnet build Dusiburg.AI.O2C.slnx` → 0 avvisi, 0 errori |
+| Test | `dotnet test --solution Dusiburg.AI.O2C.slnx` → 41/41 (Orchestrator.Tests 32, Mcp.Tests 6, Erp.Api.Tests 3) |
+| AppHost | `/health` 200 su 5101–5104; tutte e 5 le risorse inviano telemetria al dashboard; log `Dusiburg.AI.O2C.Orchestrator heartbeat` presente. Verificato via API di telemetria del dashboard (`/api/telemetry/resources`, `/traces`, `/logs`), non a vista nella UI |
 | Correlazione | `GET /` con `x-correlation-id: fase0-verifica-510x` → header restituito; span HTTP con `correlation.id` = valore inviato su tutti e 4 i servizi web |
 | Segreti | log di avvio "Connection string sql/rabbitmq is configured" senza valori; nessuna password nei log; grep sul repo: solo segnaposto |
 | AMQP | client RabbitMQ.Client da Windows: connesso come `o2c` sul vhost `o2c`, RabbitMQ 4.3.5 |
@@ -168,10 +168,18 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 ### Scostamenti e decisioni emerse
 - **Repo**: clone esistente `AI.POC-OrderToCash` invece di `o2c-agentic-poc` (D15 rivista, M14).
 - **RabbitMQ e WSL (D26)**: senza sessioni aperte WSL spegne la VM in pochi secondi e il broker con lei. L'AppHost ha la risorsa eseguibile `rabbitmq-wsl` (`wsl -d <distro> -- docker start --attach rabbitmq`, distro e container configurabili con `RabbitMq:WslDistro` / `RabbitMq:Container`). In Fase 4 i test che usano il broker dovranno tenerne conto.
-- **Test runner**: xUnit v3 su Microsoft.Testing.Platform (`xunit.v3.mtp-v2`, `global.json` → `test.runner`). Il comando è `dotnet test --solution O2C.slnx` (aggiornata la DoD in `plan.md`).
-- **Test di ServiceDefaults**: middleware e handler in `tests/Orchestrator.Tests/ServiceDefaults/`, helper di Shared in `tests/Orchestrator.Tests/Shared/`. `Erp.Api.Tests` ha uno smoke test con `WebApplicationFactory` (GET `/`, `/health`, correlation id); `Mcp.Tests` testa la serializzazione di contratti ed envelope di errore.
+- **Test runner**: xUnit v3 su Microsoft.Testing.Platform (`xunit.v3.mtp-v2`, `global.json` → `test.runner`). Il comando è `dotnet test --solution Dusiburg.AI.O2C.slnx` (aggiornata la DoD in `plan.md`).
+- **Test di ServiceDefaults**: middleware e handler in `tests/Dusiburg.AI.O2C.Orchestrator.Tests/ServiceDefaults/`, helper di Shared in `tests/Dusiburg.AI.O2C.Orchestrator.Tests/Shared/`. `Erp.Api.Tests` ha uno smoke test con `WebApplicationFactory` (GET `/`, `/health`, correlation id); `Mcp.Tests` testa la serializzazione di contratti ed envelope di errore.
 - **Contratti in Shared**: `CustomerId` int, `OrderId` GUID, `OrderLineId` int, `CompanyId`/`DealId` string (coerenti con Fase 1). Gli enum `DealStatus`/`OrderStatus` si serializzano per nome e **rifiutano i valori interi** (`StrictStringEnumConverter`).
 - **Parametri segreti**: predisposte e valorizzate solo le API key MCP (`ERP_MCP_API_KEY`, `CRM_MCP_API_KEY` passate a server e Orchestrator); la credenziale del modello resta al Gate di Fase 3 (M10).
 - **Porte fisse** tramite `launchSettings.json` (solo profilo `http` nei servizi); `Approvals.Web` senza redirect HTTPS in locale.
 - **Certificato HTTPS di sviluppo non trusted** sulla macchina: la verifica è stata fatta col profilo `http` dell'AppHost (`ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`). Per il profilo di default serve una volta `dotnet dev-certs https --trust` (vedi README).
 - Versioni fissate in `Directory.Packages.props`: OpenTelemetry 1.18.0, Http.Resilience/ServiceDiscovery 10.10.0, Microsoft.Extensions.Hosting 10.0.12, Mvc.Testing 10.0.12, xunit.v3.mtp-v2 4.0.1; Aspire SDK 13.5.3 nell'AppHost.
+
+### Rinomina con root name `Dusiburg.AI.O2C` (2026-09-14, dopo il commit di fase)
+Correzione di G0.4 chiesta dall'utente (D27, M15):
+- Cartelle e `.csproj` rinominati con `git mv` in `Dusiburg.AI.O2C.<Nome>` (src e tests); solution `Dusiburg.AI.O2C.slnx`.
+- Rimosso da `Directory.Build.props` il prefisso calcolato su `AssemblyName`/`RootNamespace`: il nome del progetto contiene già il root.
+- Namespace, `ProjectReference`, `Projects.Dusiburg_AI_O2C_*` nell'AppHost, `aspire.config.json`, sorgenti di telemetria (`Dusiburg.AI.O2C.*`), categoria di log `Dusiburg.AI.O2C.Startup` aggiornati. `UserSecretsId` dell'AppHost invariato (segreti conservati).
+- Invariati: chiave di idempotenza `o2c-…`, vhost/utente `o2c`, database `O2C`, nomi delle risorse Aspire, classe `O2CTelemetry`.
+- Verifica: build 0/0, test 41/41; AppHost avviato: `/health` 4/4, `GET /` restituisce `Dusiburg.AI.O2C.*`, span con `correlation.id`, heartbeat `Dusiburg.AI.O2C.Orchestrator`.

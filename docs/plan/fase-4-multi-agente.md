@@ -17,7 +17,7 @@ Fase 3 completata (factory del modello, provider MCP, `ToolInvocationGuard`).
 | # | Domanda | Proposta |
 |---|---------|----------|
 | G4.1 | Chi scrive sul CRM gli esiti `Discarded`/`Failed`? `IntakeAgent` e `FulfillmentAgent` non hanno `update_deal` nella loro allow-list (§5) | Il **codice host** dell'orchestratore (deterministico, non un agente) chiama `update_deal` tramite il client MCP del CRM a fine workflow. Nessun agente usa tool fuori dalla propria riga |
-| G4.2 | Dove vive il DbContext `orch`, che dalla Fase 5 serve anche ad `Approvals.Web`? | Nuovo progetto `src/Orchestration.Data` (DbContext + migrazioni) referenziato da Orchestrator e Approvals.Web (modifica M11) |
+| G4.2 | Dove vive il DbContext `orch`, che dalla Fase 5 serve anche ad `Approvals.Web`? | Nuovo progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext + migrazioni) referenziato da Orchestrator e Approvals.Web (modifica M11) |
 | G4.3 | Chi pubblica `deal-closed-won`? | L'endpoint dev `POST /dev/deals/{id}/close-won` del CRM mock pubblica direttamente sul broker (simula webhook CRM → ingestion) |
 | G4.4 | Topologia RabbitMQ | Exchange durable `deal-closed-won` (topic), coda `o2c.orchestrator.deal-closed-won`, dead-letter exchange `o2c.dlx` con coda `o2c.orchestrator.deal-closed-won.dlq` |
 | G4.5 | Concorrenza del consumer | `prefetch = 1` (elaborazione seriale: sufficiente e leggibile per la demo) |
@@ -34,7 +34,7 @@ Verificare sulla versione corrente di `Microsoft.Agents.AI.Workflows`:
 
 ## Step operativi
 
-**4.1 — Catalogo agenti** (`src/Orchestrator/Agents/`)
+**4.1 — Catalogo agenti** (`src/Dusiburg.AI.O2C.Orchestrator/Agents/`)
 - `AgentDefinition { Name, Instructions, AllowedTools, HandoffTo }`; istruzioni in file `Prompts/*.md` incorporati come risorse.
 
 | Agente | Allow-list | Compito | Esito verso l'host |
@@ -51,7 +51,7 @@ Verificare sulla versione corrente di `Microsoft.Agents.AI.Workflows`:
 - `DealWorkflowRunner`: esegue il workflow per `(dealId, correlationId)`, osserva gli eventi, aggiorna `WorkflowState` a ogni handoff, a fine run esegue gli esiti deterministici (G4.1) e restituisce l'`OrderOutcome`.
 - `SingleOrderAgent` della Fase 3 rimosso (o lasciato dietro flag solo per confronto, da decidere in esecuzione).
 
-**4.4 — Stato del workflow** (`src/Orchestration.Data`, secondo G4.2)
+**4.4 — Stato del workflow** (`src/Dusiburg.AI.O2C.Orchestration.Data`, secondo G4.2)
 - `OrchestrationDbContext` schema `orch`, tabella `WorkflowState` (§8): `CorrelationId` PK, `DealId`, `DealRevision`, `Phase` (`Received`, `Intake`, `Fulfillment`, `Order`, `Completed`, `Discarded`, `Failed`; `AwaitingApproval` in Fase 5), `StateJson`, `UpdatedAt`, `RowVersion`.
 - Indice univoco `(DealId, DealRevision)`: stesso evento ricevuto due volte → il secondo non avvia un nuovo workflow (consumer idempotente).
 - Migrazione `InitialOrch`.
@@ -66,7 +66,7 @@ Verificare sulla versione corrente di `Microsoft.Agents.AI.Workflows`:
 **4.6 — Tracing**
 - Span radice `deal-closed-won process` con link/parent al `traceparent` del messaggio; span per ogni turno di agente (`agent.run` con `agent.name`) e per ogni handoff (`agent.handoff` con `handoff.from`, `handoff.to`); gli span `tool.call` restano quelli della Fase 3.
 
-### Test — `tests/Orchestrator.Tests`
+### Test — `tests/Dusiburg.AI.O2C.Orchestrator.Tests`
 
 **4.7 — Casi** (stub del modello con copione di handoff)
 - Topologia: sono possibili solo gli archi Intake → Fulfillment → Order.

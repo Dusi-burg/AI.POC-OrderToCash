@@ -227,18 +227,18 @@ Schemi (M2): le tabelle ERP stanno nello schema `erp` (DbContext di `Erp.Api`), 
 ```text
 AI.POC-OrderToCash/
 ├─ src/
-│  ├─ AppHost/            # .NET Aspire: composizione locale di tutti i servizi
-│  ├─ ServiceDefaults/    # OpenTelemetry, health check, service discovery, correlation id condivisi
-│  ├─ Erp.Api/            # Minimal API + EF Core: il "gestionale" mock
-│  ├─ Erp.Mcp/            # Server MCP sopra Erp.Api
-│  ├─ Crm.Mcp/            # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
-│  ├─ Orchestrator/       # Worker: agenti, handoff, ToolApprovalAgent
-│  ├─ Approvals.Web/      # UI approvazioni + callback Teams
-│  └─ Shared/             # DTO, contratti, helper idempotenza e correlazione
+│  ├─ Dusiburg.AI.O2C.AppHost/             # .NET Aspire: composizione locale di tutti i servizi
+│  ├─ Dusiburg.AI.O2C.ServiceDefaults/     # OpenTelemetry, health check, service discovery, correlation id condivisi
+│  ├─ Dusiburg.AI.O2C.Erp.Api/             # Minimal API + EF Core: il "gestionale" mock
+│  ├─ Dusiburg.AI.O2C.Erp.Mcp/             # Server MCP sopra Erp.Api
+│  ├─ Dusiburg.AI.O2C.Crm.Mcp/             # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
+│  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, ToolApprovalAgent
+│  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
+│  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
 ├─ tests/
-│  ├─ Erp.Api.Tests/
-│  ├─ Mcp.Tests/          # server MCP e CRM mock (M5)
-│  └─ Orchestrator.Tests/ # server MCP fake + modello stub, nessuna chiamata reale
+│  ├─ Dusiburg.AI.O2C.Erp.Api.Tests/
+│  ├─ Dusiburg.AI.O2C.Mcp.Tests/           # server MCP e CRM mock (M5)
+│  └─ Dusiburg.AI.O2C.Orchestrator.Tests/  # server MCP fake + modello stub, nessuna chiamata reale
 ├─ infra/                 # Bicep / azd
 └─ README.md
 ```
@@ -347,13 +347,14 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M2 | §3.1, §3.2, §8, §9, §10 | Persistenza locale su SQL Server LocalDB `(localdb)\localdev`, database `O2C`, schemi `erp`/`crm`/`orch`, invece di SQLite | Applicata (Fase 0) |
 | M3 | §6.2 | `get_deal` restituisce anche `revision` | Applicata (Fase 0) |
 | M4 | §6.2 | `update_deal.status` è un enum chiuso | Applicata (Fase 0) |
-| M5 | §10 | Progetto di test `tests/Mcp.Tests` | Applicata (Fase 0) |
+| M5 | §10 | Progetto di test `tests/Dusiburg.AI.O2C.Mcp.Tests` | Applicata (Fase 0) |
 | M6 | §9, §10 | CRM mock persistente dentro `Crm.Mcp` dietro `ICrmClient` | Applicata (Fase 0) |
 | M7 | §3.1, §3.2, §9, §10 | Messaggistica locale su RabbitMQ (container in WSL tenuto attivo dall'AppHost), exchange `deal-closed-won` | Applicata (Fase 0) |
 | M8 | §7, §13 | Nome e semantica del meccanismo di approvazione (`ToolApprovalAgent`), da confermare con lo spike | Da decidere (Fase 5) |
 | M9 | §5, §7 | Regole di dominio: riga non disponibile e SKU inesistente, solo EUR, prezzo del deal, riserva dello stock | Applicata (Fase 0) |
 | M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Da decidere (Gate Fase 3) |
-| M11 | §10 | Eventuale progetto `src/Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`) | Da decidere (Gate Fase 4) |
+| M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`) | Da decidere (Gate Fase 4) |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequests` | Da decidere (Gate Fase 5) |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
 | M14 | §10 | Repository `AI.POC-OrderToCash` (clone GitHub) invece di `o2c-agentic-poc` | Applicata (Fase 0) |
+| M15 | §10 | Progetti, cartelle e namespace con root name `Dusiburg.AI.O2C` (es. `src/Dusiburg.AI.O2C.Erp.Api`), solution `Dusiburg.AI.O2C.slnx` | Applicata (dopo Fase 0) |

@@ -25,7 +25,7 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 
 ## Step operativi
 
-### ERP mock — `src/Erp.Api`
+### ERP mock — `src/Dusiburg.AI.O2C.Erp.Api`
 
 **1.1 — Modello e DbContext**
 - `ErpDbContext` con `HasDefaultSchema("erp")` e history table delle migrazioni nello schema `erp`.
@@ -57,9 +57,9 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 - Race condition: se l'insert viola l'indice univoco (`DbUpdateException` con errore SQL 2601/2627) → rileggere l'ordine esistente e restituirlo con 200.
 - `ExternalRef` = `dealId`.
 
-**1.6 — File `.http`**: `src/Erp.Api/Erp.Api.http` con tutti gli endpoint e un doppio POST con la stessa chiave.
+**1.6 — File `.http`**: `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` con tutti gli endpoint e un doppio POST con la stessa chiave.
 
-### CRM mock — `src/Crm.Mcp`
+### CRM mock — `src/Dusiburg.AI.O2C.Crm.Mcp`
 
 **1.7 — Persistenza e client**
 - `CrmDbContext` schema `crm`: `Company` (`CompanyId`, `Name`, `VatNumber`, `Email`, `Address`), `Deal` (`DealId` string es. `D-1001`, `Name`, `Amount`, `Currency`, `Stage`, `CompanyId`, `Revision`, `ErpOrderNumber`, `O2CStatus`, `LastNote`, `UpdatedAt`), `DealLineItem` (`Sku`, `Quantity`, `UnitPrice`), `DealNote` (storico delle note scritte da O2C, per audit).
@@ -83,15 +83,15 @@ Fase 0 completata (solution, LocalDB `localdev`, AppHost avviabile).
 - `GET /dev/deals`, `GET /dev/deals/{dealId}` (deal + righe + revision + stato O2C).
 - `POST /dev/deals/{dealId}/close-won` → stage `ClosedWon` (la pubblicazione sul broker arriva in Fase 4).
 - `POST /dev/reset` → ripristina i dati di scenario (deal, note; utile per ripetere la demo).
-- File `src/Crm.Mcp/Crm.Mcp.dev.http`.
+- File `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http`.
 
 ### Test
 
-**1.10 — `tests/Erp.Api.Tests`**
+**1.10 — `tests/Dusiburg.AI.O2C.Erp.Api.Tests`**
 - `WebApplicationFactory<Program>` con database di test dedicato su `(localdb)\localdev` (`O2C_Test_<guid>`, creato e cancellato dalla fixture).
 - Casi: giacenza SKU noto/sconosciuto; `available` con `Reserved` > 0; creazione cliente e duplicato (409); ricerca cliente per partita IVA ed email; ordine felice (totale, stato, riserva); **doppio POST con stessa chiave → stesso `orderId`, una sola riga in `Orders`**; **POST paralleli con stessa chiave → un solo ordine**; validazioni (400).
 
-**1.11 — `tests/Mcp.Tests` (parte CRM)**
+**1.11 — `tests/Dusiburg.AI.O2C.Mcp.Tests` (parte CRM)**
 - `MockCrmClient` su DB di test: lettura deal con righe e revision; `UpdateDealAsync` non cambia `Revision` e scrive una nota; reset.
 
 ## Criteri di accettazione

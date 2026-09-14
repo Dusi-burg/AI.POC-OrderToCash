@@ -1,0 +1,17 @@
+<Project Sdk="Aspire.AppHost.Sdk/13.5.3">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <AspireUseCliBundle>true</AspireUseCliBundle>
+    <UserSecretsId>34bc01f3-9054-44c3-943c-06c5b46a1f88</UserSecretsId>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Api\Dusiburg.AI.O2C.Erp.Api.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Mcp\Dusiburg.AI.O2C.Erp.Mcp.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Crm.Mcp\Dusiburg.AI.O2C.Crm.Mcp.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Orchestrator\Dusiburg.AI.O2C.Orchestrator.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Approvals.Web\Dusiburg.AI.O2C.Approvals.Web.csproj" />
+  </ItemGroup>
+
+</Project>
