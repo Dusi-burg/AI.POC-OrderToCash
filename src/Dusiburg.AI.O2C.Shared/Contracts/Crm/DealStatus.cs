@@ -9,10 +9,10 @@ namespace Dusiburg.AI.O2C.Shared.Contracts.Crm;
 [JsonConverter(typeof(StrictStringEnumConverter<DealStatus>))]
 public enum DealStatus
 {
-    ApprovalPending,
-    OrderCreated,
-    Rejected,
-    Expired,
-    Discarded,
-    Failed
+    ApprovalPending = 1,
+    OrderCreated = 2,
+    Rejected = 3,
+    Expired = 4,
+    Discarded = 5,
+    Failed = 6
 }

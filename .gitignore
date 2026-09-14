@@ -58,3 +58,7 @@ nunit-*.xml
 
 #Visual Studio folder
 .vs
+
+# Risultati dei test e coverage (dotnet test --coverage, Visual Studio)
+TestResults/
+*.coverage
