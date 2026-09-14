@@ -4,39 +4,55 @@ using Dusiburg.AI.O2C.Shared.Correlation;
 
 namespace Dusiburg.AI.O2C.Erp.Api.Tests;
 
-public class RootEndpointTests(WebApplicationFactory<Program> factory) : IClassFixture<WebApplicationFactory<Program>>
+public class RootEndpointTests
 {
-    [Fact]
+    private WebApplicationFactory<Program> _factory = null!;
+
+    [OneTimeSetUp]
+    public void CreateFactory()
+    {
+        _factory = new WebApplicationFactory<Program>();
+    }
+
+    [OneTimeTearDown]
+    public void DisposeFactory()
+    {
+        _factory.Dispose();
+    }
+
+    [Test]
     public async Task GetRoot_WithCorrelationId_ReturnsOkAndEchoesIt()
     {
-        using var client = factory.CreateClient();
+        using var client = _factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Add(CorrelationId.HeaderName, "test-corr-1");
 
-        using var response = await client.SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await client.SendAsync(request, TestContext.CurrentContext.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.Equal("test-corr-1", Assert.Single(response.Headers.GetValues(CorrelationId.HeaderName)));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(response.Headers.GetValues(CorrelationId.HeaderName), Is.EqualTo(new[] { "test-corr-1" }));
     }
 
-    [Fact]
+    [Test]
     public async Task GetRoot_WithoutCorrelationId_ReturnsGeneratedId()
     {
-        using var client = factory.CreateClient();
+        using var client = _factory.CreateClient();
 
-        using var response = await client.GetAsync("/", TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync("/", TestContext.CurrentContext.CancellationToken);
+        var values = response.Headers.GetValues(CorrelationId.HeaderName).ToList();
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        Assert.True(CorrelationId.IsValid(Assert.Single(response.Headers.GetValues(CorrelationId.HeaderName))));
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
+        Assert.That(values, Has.Count.EqualTo(1));
+        Assert.That(CorrelationId.IsValid(values[0]), Is.True);
     }
 
-    [Fact]
+    [Test]
     public async Task GetHealth_ReturnsOk()
     {
-        using var client = factory.CreateClient();
+        using var client = _factory.CreateClient();
 
-        using var response = await client.GetAsync("/health", TestContext.Current.CancellationToken);
+        using var response = await client.GetAsync("/health", TestContext.CurrentContext.CancellationToken);
 
-        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
     }
 }

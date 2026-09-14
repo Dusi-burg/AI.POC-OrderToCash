@@ -4,39 +4,41 @@ namespace Dusiburg.AI.O2C.Orchestrator.Tests.Shared;
 
 public class CorrelationTests
 {
-    [Fact]
+    [Test]
     public void New_ReturnsValidVersion7Guid()
     {
         var id = CorrelationId.New();
 
-        Assert.True(CorrelationId.IsValid(id));
-        Assert.Equal(7, Guid.Parse(id).Version);
+        Assert.That(CorrelationId.IsValid(id), Is.True);
+        Assert.That(Guid.Parse(id).Version, Is.EqualTo(7));
     }
 
-    [Fact]
+    [Test]
     public void New_ReturnsDistinctIds()
     {
-        Assert.NotEqual(CorrelationId.New(), CorrelationId.New());
+        var first = CorrelationId.New();
+        var second = CorrelationId.New();
+
+        Assert.That(second, Is.Not.EqualTo(first));
     }
 
-    [Theory]
-    [InlineData(null)]
-    [InlineData("")]
-    [InlineData("contains space")]
-    [InlineData("line\r\nbreak")]
-    [InlineData("<script>")]
+    [TestCase(null)]
+    [TestCase("")]
+    [TestCase("contains space")]
+    [TestCase("line\r\nbreak")]
+    [TestCase("<script>")]
     public void IsValid_RejectsUnsafeValues(string? value)
     {
-        Assert.False(CorrelationId.IsValid(value));
+        Assert.That(CorrelationId.IsValid(value), Is.False);
     }
 
-    [Fact]
+    [Test]
     public void IsValid_RejectsTooLongValue()
     {
-        Assert.False(CorrelationId.IsValid(new string('a', CorrelationId.MaxLength + 1)));
+        Assert.That(CorrelationId.IsValid(new string('a', CorrelationId.MaxLength + 1)), Is.False);
     }
 
-    [Fact]
+    [Test]
     public void Begin_SetsCurrentAndRestoresPreviousOnDispose()
     {
         var context = new AsyncLocalCorrelationContext();
@@ -45,20 +47,20 @@ public class CorrelationTests
         {
             using (context.Begin("inner"))
             {
-                Assert.Equal("inner", context.Current);
+                Assert.That(context.Current, Is.EqualTo("inner"));
             }
 
-            Assert.Equal("outer", context.Current);
+            Assert.That(context.Current, Is.EqualTo("outer"));
         }
 
-        Assert.Null(context.Current);
+        Assert.That(context.Current, Is.Null);
     }
 
-    [Fact]
+    [Test]
     public void Begin_InvalidId_Throws()
     {
         var context = new AsyncLocalCorrelationContext();
 
-        Assert.Throws<ArgumentException>(() => context.Begin("not valid"));
+        Assert.That(() => context.Begin("not valid"), Throws.TypeOf<ArgumentException>());
     }
 }

@@ -11,7 +11,7 @@ public class CorrelationIdMiddlewareTests
 {
     private readonly AsyncLocalCorrelationContext _context = new();
 
-    [Fact]
+    [Test]
     public async Task InvokeAsync_WithoutHeader_GeneratesId()
     {
         string? seen = null;
@@ -20,11 +20,11 @@ public class CorrelationIdMiddlewareTests
 
         await middleware.InvokeAsync(http);
 
-        Assert.True(CorrelationId.IsValid(seen));
-        Assert.Equal(seen, http.Response.Headers[CorrelationId.HeaderName].ToString());
+        Assert.That(CorrelationId.IsValid(seen), Is.True);
+        Assert.That(http.Response.Headers[CorrelationId.HeaderName].ToString(), Is.EqualTo(seen));
     }
 
-    [Fact]
+    [Test]
     public async Task InvokeAsync_WithValidHeader_KeepsInboundId()
     {
         string? seen = null;
@@ -34,11 +34,11 @@ public class CorrelationIdMiddlewareTests
 
         await middleware.InvokeAsync(http);
 
-        Assert.Equal("deal-D-1001-run-42", seen);
-        Assert.Equal("deal-D-1001-run-42", http.Response.Headers[CorrelationId.HeaderName].ToString());
+        Assert.That(seen, Is.EqualTo("deal-D-1001-run-42"));
+        Assert.That(http.Response.Headers[CorrelationId.HeaderName].ToString(), Is.EqualTo("deal-D-1001-run-42"));
     }
 
-    [Fact]
+    [Test]
     public async Task InvokeAsync_WithInvalidHeader_GeneratesNewId()
     {
         string? seen = null;
@@ -48,11 +48,11 @@ public class CorrelationIdMiddlewareTests
 
         await middleware.InvokeAsync(http);
 
-        Assert.True(CorrelationId.IsValid(seen));
-        Assert.NotEqual("bad value\r\ninjected: header", seen);
+        Assert.That(CorrelationId.IsValid(seen), Is.True);
+        Assert.That(seen, Is.Not.EqualTo("bad value\r\ninjected: header"));
     }
 
-    [Fact]
+    [Test]
     public async Task InvokeAsync_TagsCurrentActivity()
     {
         using var activity = new Activity("test-request").Start();
@@ -62,18 +62,18 @@ public class CorrelationIdMiddlewareTests
 
         await middleware.InvokeAsync(http);
 
-        Assert.Equal("corr-activity", activity.GetTagItem(O2CTelemetry.Attributes.CorrelationId));
-        Assert.Equal("corr-activity", activity.GetBaggageItem(O2CTelemetry.Attributes.CorrelationId));
+        Assert.That(activity.GetTagItem(O2CTelemetry.Attributes.CorrelationId), Is.EqualTo("corr-activity"));
+        Assert.That(activity.GetBaggageItem(O2CTelemetry.Attributes.CorrelationId), Is.EqualTo("corr-activity"));
     }
 
-    [Fact]
+    [Test]
     public async Task InvokeAsync_ClearsAmbientIdAfterRequest()
     {
         var middleware = CreateMiddleware(() => { });
 
         await middleware.InvokeAsync(new DefaultHttpContext());
 
-        Assert.Null(_context.Current);
+        Assert.That(_context.Current, Is.Null);
     }
 
     private CorrelationIdMiddleware CreateMiddleware(Action onNext) =>

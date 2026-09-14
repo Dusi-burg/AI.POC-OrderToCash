@@ -78,9 +78,9 @@ Nessuna fase precedente.
 | `src/Dusiburg.AI.O2C.Orchestrator` | worker | |
 | `src/Dusiburg.AI.O2C.Approvals.Web` | web (Razor Pages) | |
 | `src/Dusiburg.AI.O2C.Shared` | classlib | nessuna dipendenza da ASP.NET/EF |
-| `tests/Dusiburg.AI.O2C.Erp.Api.Tests` | xUnit v3 | |
-| `tests/Dusiburg.AI.O2C.Mcp.Tests` | xUnit v3 | D14 |
-| `tests/Dusiburg.AI.O2C.Orchestrator.Tests` | xUnit v3 | include i test degli helper di `Shared` |
+| `tests/Dusiburg.AI.O2C.Erp.Api.Tests` | NUnit 4 (D28) | |
+| `tests/Dusiburg.AI.O2C.Mcp.Tests` | NUnit 4 (D28) | D14 |
+| `tests/Dusiburg.AI.O2C.Orchestrator.Tests` | NUnit 4 (D28) | include i test degli helper di `Shared` |
 
 **0.4 — ServiceDefaults**
 - `AddServiceDefaults()`: OpenTelemetry (tracce, metriche, log) con exporter OTLP da `OTEL_EXPORTER_OTLP_ENDPOINT`, `AddSource("Dusiburg.AI.O2C.*")`; health check `/health` e `/alive`; service discovery; `AddStandardResilienceHandler` sugli HttpClient.
@@ -152,7 +152,7 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 ### Ambiente
 - git di Fork nel PATH utente (fatto dall'utente); LocalDB `localdev` avviata.
 - RabbitMQ: vhost `o2c`, utente `o2c` con permessi `.* .* .*` sul vhost; password casuale solo negli user-secrets dell'AppHost.
-- Template `Aspire.ProjectTemplates` 13.5.3 e `xunit.v3.templates` 4.0.1; tool locale `dotnet-ef` 10.0.12 (`dotnet-tools.json`).
+- Template `Aspire.ProjectTemplates` 13.5.3 e `xunit.v3.templates` 4.0.1 (non più usato dopo D28); tool locale `dotnet-ef` 10.0.12 (`dotnet-tools.json`).
 - User-secrets dell'AppHost: `ConnectionStrings:sql`, `ConnectionStrings:rabbitmq`, `Parameters:erp-mcp-api-key`, `Parameters:crm-mcp-api-key`.
 
 ### Verifiche
@@ -168,13 +168,13 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 ### Scostamenti e decisioni emerse
 - **Repo**: clone esistente `AI.POC-OrderToCash` invece di `o2c-agentic-poc` (D15 rivista, M14).
 - **RabbitMQ e WSL (D26)**: senza sessioni aperte WSL spegne la VM in pochi secondi e il broker con lei. L'AppHost ha la risorsa eseguibile `rabbitmq-wsl` (`wsl -d <distro> -- docker start --attach rabbitmq`, distro e container configurabili con `RabbitMq:WslDistro` / `RabbitMq:Container`). In Fase 4 i test che usano il broker dovranno tenerne conto.
-- **Test runner**: xUnit v3 su Microsoft.Testing.Platform (`xunit.v3.mtp-v2`, `global.json` → `test.runner`). Il comando è `dotnet test --solution Dusiburg.AI.O2C.slnx` (aggiornata la DoD in `plan.md`).
+- **Test runner**: Microsoft.Testing.Platform (`global.json` → `test.runner`); in origine xUnit v3 (`xunit.v3.mtp-v2`), poi NUnit 4 con `EnableNUnitRunner` (D28). Il comando è `dotnet test --solution Dusiburg.AI.O2C.slnx` (aggiornata la DoD in `plan.md`).
 - **Test di ServiceDefaults**: middleware e handler in `tests/Dusiburg.AI.O2C.Orchestrator.Tests/ServiceDefaults/`, helper di Shared in `tests/Dusiburg.AI.O2C.Orchestrator.Tests/Shared/`. `Erp.Api.Tests` ha uno smoke test con `WebApplicationFactory` (GET `/`, `/health`, correlation id); `Mcp.Tests` testa la serializzazione di contratti ed envelope di errore.
 - **Contratti in Shared**: `CustomerId` int, `OrderId` GUID, `OrderLineId` int, `CompanyId`/`DealId` string (coerenti con Fase 1). Gli enum `DealStatus`/`OrderStatus` si serializzano per nome e **rifiutano i valori interi** (`StrictStringEnumConverter`).
 - **Parametri segreti**: predisposte e valorizzate solo le API key MCP (`ERP_MCP_API_KEY`, `CRM_MCP_API_KEY` passate a server e Orchestrator); la credenziale del modello resta al Gate di Fase 3 (M10).
 - **Porte fisse** tramite `launchSettings.json` (solo profilo `http` nei servizi); `Approvals.Web` senza redirect HTTPS in locale.
 - **Certificato HTTPS di sviluppo non trusted** sulla macchina: la verifica è stata fatta col profilo `http` dell'AppHost (`ASPIRE_ALLOW_UNSECURED_TRANSPORT=true`). Per il profilo di default serve una volta `dotnet dev-certs https --trust` (vedi README).
-- Versioni fissate in `Directory.Packages.props`: OpenTelemetry 1.18.0, Http.Resilience/ServiceDiscovery 10.10.0, Microsoft.Extensions.Hosting 10.0.12, Mvc.Testing 10.0.12, xunit.v3.mtp-v2 4.0.1; Aspire SDK 13.5.3 nell'AppHost.
+- Versioni fissate in `Directory.Packages.props`: OpenTelemetry 1.18.0, Http.Resilience/ServiceDiscovery 10.10.0, Microsoft.Extensions.Hosting 10.0.12, Mvc.Testing 10.0.12, NUnit 4.6.1, NUnit3TestAdapter 6.3.0, NUnit.Analyzers 4.15.0, Microsoft.Testing.Extensions.CodeCoverage 18.11.2 (D28; in origine xunit.v3.mtp-v2 4.0.1); Aspire SDK 13.5.3 nell'AppHost.
 
 ### Rinomina con root name `Dusiburg.AI.O2C` (2026-09-14, dopo il commit di fase)
 Correzione di G0.4 chiesta dall'utente (D27, M15):
@@ -183,3 +183,8 @@ Correzione di G0.4 chiesta dall'utente (D27, M15):
 - Namespace, `ProjectReference`, `Projects.Dusiburg_AI_O2C_*` nell'AppHost, `aspire.config.json`, sorgenti di telemetria (`Dusiburg.AI.O2C.*`), categoria di log `Dusiburg.AI.O2C.Startup` aggiornati. `UserSecretsId` dell'AppHost invariato (segreti conservati).
 - Invariati: chiave di idempotenza `o2c-…`, vhost/utente `o2c`, database `O2C`, nomi delle risorse Aspire, classe `O2CTelemetry`.
 - Verifica: build 0/0, test 41/41; AppHost avviato: `/health` 4/4, `GET /` restituisce `Dusiburg.AI.O2C.*`, span con `correlation.id`, heartbeat `Dusiburg.AI.O2C.Orchestrator`.
+
+### Code coverage e passaggio a NUnit (2026-09-14)
+- Coverage: `Microsoft.Testing.Extensions.CodeCoverage` 18.11.2 nei progetti di test; `.gitignore` esclude `TestResults/` e `*.coverage`. Funziona da Visual Studio e con `dotnet test --solution Dusiburg.AI.O2C.slnx --coverage`.
+- NUnit (D28): i test sono stati riscritti con NUnit 4 e `Assert.That` in progetti di prova (`*.Fixture`) e confrontati con xUnit sugli stessi casi (32/6/3 test, tutti verdi in entrambi). Poi sono stati rimossi i progetti xUnit e i progetti NUnit hanno preso i nomi `Dusiburg.AI.O2C.<Nome>.Tests`.
+- Mapping usato: `[Fact]`/`[Theory]`+`[InlineData]` → `[Test]`/`[TestCase]`; `Assert.Throws<T>` → `Throws.TypeOf<T>()`, `Assert.ThrowsAny<T>` → `Throws.InstanceOf<T>()`; `IClassFixture<WebApplicationFactory<Program>>` → `[OneTimeSetUp]`/`[OneTimeTearDown]`; `TestContext.Current.CancellationToken` → `TestContext.CurrentContext.CancellationToken`.

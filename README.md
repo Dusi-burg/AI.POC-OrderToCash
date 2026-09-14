@@ -19,7 +19,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 | `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agenti, handoff, policy di approvazione |
 | `src/Dusiburg.AI.O2C.Approvals.Web` | UI delle approvazioni |
 | `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
-| `tests/*` | xUnit v3 (Microsoft.Testing.Platform) |
+| `tests/*` | NUnit 4 con `Assert.That` (runner NUnit su Microsoft.Testing.Platform) |
 
 ## Prerequisiti
 
@@ -86,8 +86,10 @@ Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in De
 
 ```powershell
 dotnet build Dusiburg.AI.O2C.slnx   # warning trattati come errori
-dotnet test --solution Dusiburg.AI.O2C.slnx   # xUnit v3 su Microsoft.Testing.Platform
+dotnet test --solution Dusiburg.AI.O2C.slnx   # NUnit su Microsoft.Testing.Platform
 ```
+
+Code coverage: in Visual Studio da **Test → Analizza code coverage per tutti i test**; da riga di comando `dotnet test --solution Dusiburg.AI.O2C.slnx --coverage` (file `.coverage` in `TestResults/`, esclusa da git).
 
 ## Convenzioni trasversali
 

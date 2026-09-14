@@ -8,7 +8,7 @@ public class CorrelationIdDelegatingHandlerTests
 {
     private readonly AsyncLocalCorrelationContext _context = new();
 
-    [Fact]
+    [Test]
     public async Task SendAsync_WithAmbientId_AddsHeader()
     {
         var inner = new CapturingHandler();
@@ -18,20 +18,20 @@ public class CorrelationIdDelegatingHandlerTests
             await SendAsync(inner);
         }
 
-        Assert.Equal("corr-ambient", inner.CorrelationIdHeader);
+        Assert.That(inner.CorrelationIdHeader, Is.EqualTo("corr-ambient"));
     }
 
-    [Fact]
+    [Test]
     public async Task SendAsync_WithoutAmbientId_DoesNotAddHeader()
     {
         var inner = new CapturingHandler();
 
         await SendAsync(inner);
 
-        Assert.Null(inner.CorrelationIdHeader);
+        Assert.That(inner.CorrelationIdHeader, Is.Null);
     }
 
-    [Fact]
+    [Test]
     public async Task SendAsync_WithExplicitHeader_KeepsIt()
     {
         var inner = new CapturingHandler();
@@ -41,7 +41,7 @@ public class CorrelationIdDelegatingHandlerTests
             await SendAsync(inner, request => request.Headers.Add(CorrelationId.HeaderName, "corr-explicit"));
         }
 
-        Assert.Equal("corr-explicit", inner.CorrelationIdHeader);
+        Assert.That(inner.CorrelationIdHeader, Is.EqualTo("corr-explicit"));
     }
 
     private async Task SendAsync(CapturingHandler inner, Action<HttpRequestMessage>? configure = null)
@@ -50,7 +50,7 @@ public class CorrelationIdDelegatingHandlerTests
         using var request = new HttpRequestMessage(HttpMethod.Get, "http://erp-api/api/stock/IND-BRG-001");
         configure?.Invoke(request);
 
-        using var response = await invoker.SendAsync(request, TestContext.Current.CancellationToken);
+        using var response = await invoker.SendAsync(request, TestContext.CurrentContext.CancellationToken);
     }
 
     private sealed class CapturingHandler : HttpMessageHandler

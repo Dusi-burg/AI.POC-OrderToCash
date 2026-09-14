@@ -92,7 +92,7 @@ flowchart LR
 | D11 | `MODEL_PROVIDER=azure-openai` di default | 3 |
 | D12 | Provider Ollama implementato ma solo smoke test su modello piccolo; nessuna accettazione dipende dal modello locale | 3 |
 | D13 | Ogni fase che usa Agent Framework / MCP SDK inizia con uno **spike di verifica API**; divergenze → equivalente + aggiornamento specifica | 2–5 |
-| D14 | Test con **xUnit v3**; progetto aggiuntivo `tests/Dusiburg.AI.O2C.Mcp.Tests` | 0, 2 |
+| D14 | Test con **NUnit 4** (`Assert.That`) su Microsoft.Testing.Platform (in origine xUnit v3, sostituito: D28); progetto aggiuntivo `tests/Dusiburg.AI.O2C.Mcp.Tests` | 0, 2 |
 | D15 | git: istanza di **Fork** (2.50.1, nel PATH utente); repo **`C:\Dev\NetCode\AI.POC-OrderToCash`** (clone di `github.com/Dusi-burg/AI.POC-OrderToCash`), branch `develop`, **solo commit locali — il push lo fa l'utente** (rivista al Gate F0, 2026-09-14) | 0 |
 | D16 | Ripresa dopo approvazione: spike su **(A) checkpointing nativo** del workflow persistito su SQL; fallback **(B) resume deterministico** dalla proposta persistita | 5 |
 | D17 | `ApprovalPolicy` deterministica in C#; **`idempotencyKey` e `CorrelationId` calcolati e iniettati dal codice, mai generati dal modello** | 3, 5 |
@@ -106,6 +106,7 @@ flowchart LR
 | D25 | Approvatore da configurazione in locale (`DecidedBy`); Entra/Teams in Fase 6; regole "non chiedere più" fuori scope | 5, 6 |
 | D26 | WSL spegne la VM (e Docker) pochi secondi dopo l'ultima sessione: l'AppHost tiene aperta una sessione con la risorsa eseguibile `rabbitmq-wsl` (`wsl -d Ubuntu-26.04 -- docker start --attach rabbitmq`). Nessuna configurazione di macchina né script al riavvio; il broker è attivo solo mentre gira l'AppHost (Gate F0, 2026-09-14) | 0, 4 |
 | D27 | Root name **`Dusiburg.AI.O2C`**: progetti, cartelle, assembly e namespace si chiamano `Dusiburg.AI.O2C.<Nome>` (es. `src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj`), solution `Dusiburg.AI.O2C.slnx`, sorgenti di telemetria `Dusiburg.AI.O2C.*`. Restano invariati i valori di dominio (`o2c-…` della chiave di idempotenza, vhost `o2c`, database `O2C`) e i nomi delle risorse Aspire (`erp-api`, …). Correzione di G0.4 chiesta dall'utente dopo la Fase 0 (2026-09-14) | tutte |
+| D28 | Framework di test **NUnit 4** con modello a vincoli `Assert.That` e NUnit.Analyzers, runner NUnit su Microsoft.Testing.Platform (`EnableNUnitRunner`), coverage con `Microsoft.Testing.Extensions.CodeCoverage` (anche da Visual Studio). Sostituisce xUnit v3 dopo un confronto sugli stessi test (stessi risultati); scelto per familiarità dell'utente. Da ricordare: un'istanza per classe di test (stato da reinizializzare in `[SetUp]`) ed esecuzione sequenziale per default (2026-09-14) | tutte |
 
 ## Registro modifiche alla specifica
 
