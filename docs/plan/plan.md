@@ -20,7 +20,7 @@
 | 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | ✅ Completata (2026-09-14) |
 | 2 | [fase-2-server-mcp.md](fase-2-server-mcp.md) | Erp.Mcp e Crm.Mcp con i tool di §6 | ✅ Completata (2026-09-15) |
 | 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ✅ Completata (2026-09-15) |
-| 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ⬜ Da iniziare |
+| 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ✅ Completata (2026-09-15) |
 | 5 | [fase-5-human-in-the-loop.md](fase-5-human-in-the-loop.md) | Approvazione, sospensione e ripresa | ⬜ Da iniziare |
 | 6 | [fase-6-deploy-osservabilita.md](fase-6-deploy-osservabilita.md) | Azure (outline, da dettagliare) | ⬜ Outline |
 
@@ -122,6 +122,10 @@ flowchart LR
 | D41 | **Modello locale** (utente, Gate F3, G3.5): Ollama nativo Windows (winget, CUDA sulla RTX 5060 Laptop 8 GB) con **`qwen3.5:9b`**; misurato con N run del flusso reale di D-1001 (completamento, tool e argomenti errati, latenza), **senza criteri di accettazione vincolanti** (D12 confermata). L'accettazione della Fase 3 si fa su Claude (2026-09-15) | 3 |
 | D42 | **Proposte del Gate F3 accettate**: prompt di sistema in inglese (G3.3); `System.CommandLine`, senza argomenti modalità worker (G3.4); solo D-1001 fino alla Fase 5 (G3.6) (2026-09-15) | 3 |
 | D43 | **Run di accettazione della Fase 3 con Claude Haiku 4.5** (utente, 2026-09-15): scelto il modello più leggero per la prova ("se funziona quello da 8 GB in locale non vedo perché debba avere problemi"), cambiato solo con `ANTHROPIC_MODEL=claude-haiku-4-5`; il default resta `claude-sonnet-5`. Haiku 4.5 non supporta l'adaptive thinking: la factory usa `AnthropicThinkingMode.Extended` per quel modello | 3 |
+| D44 | **Handoff di Agent Framework** (utente, Gate F4): `AgentWorkflowBuilder.CreateHandoffBuilderWith(Intake)` con archi solo in avanti Intake → Fulfillment → Order, modalità autonoma e condizione di terminazione; sono gli agenti a chiamare i tool di trasferimento (`{FunctionPrefix}<id agente>`), come da §5/§13. L'host resta il garante: esiti `Discarded`/`Failed`/`OrderCreated` dai fatti dei tool, `update_deal` per `Discarded`/`Failed` scritto dal codice (G4.1), span `agent.handoff` ricavati dalle chiamate di trasferimento (il framework non emette un evento di handoff) (2026-09-15) | 4, 5 |
+| D45 | **Stato del workflow in `src/Dusiburg.AI.O2C.Orchestration.Data`** (utente, Gate F4, G4.2): `OrchestrationDbContext` schema `orch`, schema creato da `DbInit` senza migrazioni (D30); tabella `WorkflowState` con PK `Id`, `CorrelationId` univoco, indice univoco `(DealId, DealRevision)`, fase come FK verso la lookup `WorkflowPhase` (D29–D31); referenziato da Orchestrator, DbInit e (Fase 5) Approvals.Web. Chiude M11 (2026-09-15) | 4, 5 |
+| D46 | **RabbitMQ con `Aspire.RabbitMQ.Client` 13.5.3** (utente, Gate F4, G4.6): connessione dalla connection string `rabbitmq`, health check e tracing dell'integrazione Aspire; topologia (G4.4), `prefetch = 1` (G4.5), ack manuale, riaccodamento e dead-letter nel codice dietro `IDealEventSource`. Publisher nell'endpoint dev `close-won` del CRM mock (G4.3) (2026-09-15) | 4 |
+| D47 | **`SingleOrderAgent` tenuto dietro flag** (utente, Gate F4): `O2C_AGENT_MODE` = `multi` (default, workflow a tre agenti) \| `single` (agente della Fase 3), per confrontare token, tempi e affidabilità; stesso `DealProcessor`, stessa guardia e stessi esiti dai fatti (2026-09-15) | 4 |
 
 ## Registro modifiche alla specifica
 
@@ -140,7 +144,8 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M9 | §5, §7 | Regole di dominio: parziale/bloccato, solo EUR, prezzo del deal, riserva stock | D20–D22 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M10 | §10 | Autenticazione locale al modello: `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | D40 | ✅ Applicata in F3 (`docs/architettura.md`) |
 | M23 | §3.1, §3.3, §9, §10, §16 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`; chiavi `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`; rimosse `AZURE_OPENAI_*`; Claude su Microsoft Foundry come opzione per la Fase 6 | D39–D41 | ✅ Applicata in F3 (`docs/architettura.md`) |
-| M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web) | Gate F4 | Da decidere in F4 |
+| M11 | §8, §10 | Progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web), `WorkflowState` con PK `Id` e lookup `WorkflowPhase`, schema da `DbInit` | D45 | ✅ Applicata in F4 (`docs/architettura.md`) |
+| M24 | §5, §10 | Workflow a tre agenti con handoff di Agent Framework: modalità autonoma limitata, tool locali di verdetto (`report_discarded`, `report_failed`), esiti e scritture `Discarded`/`Failed` dall'host; `O2C_AGENT_MODE=multi\|single`; trigger RabbitMQ con consumer idempotente su `orch.WorkflowState` | D44, D46, D47 | ✅ Applicata in F4 (`docs/architettura.md`) |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Gate F5 | Da decidere in F5 |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F6 | Da decidere in F6 |
 | M14 | §10 | Repository `AI.POC-OrderToCash` invece di `o2c-agentic-poc` | Gate F0 (D15) | ✅ Applicata in F0 (`docs/architettura.md`) |

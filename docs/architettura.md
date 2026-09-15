@@ -204,7 +204,8 @@ Database relazionale (Azure SQL in cloud, SQL Server LocalDB `(localdb)\localdev
 | `OrderStatus` | `Id` (tinyint = valore di `OrderStatus`), `Name` — lookup generata dall'enum |
 | `OrderLine` | `Id`, `OrderId`, `ProductId`, `Quantity`, `UnitPrice` |
 | `ApprovalRequest` | vedi §7 |
-| `WorkflowState` | `CorrelationId`, `DealId`, `Phase`, `StateJson`, `UpdatedAt` |
+| `WorkflowState` | `Id`, `CorrelationId` (univoco), `DealId`, `DealRevision` (univoco con `DealId`), `WorkflowPhaseId`, `StateJson`, `CreatedAt`, `UpdatedAt`, `RowVersion` (M11) |
+| `WorkflowPhase` | `Id` (tinyint = valore di `WorkflowPhase`), `Name` — lookup generata dall'enum (M11) |
 
 Vincolo: indice univoco su `Order.IdempotencyKey` — è il meccanismo che rende impossibile la creazione doppia di un ordine a fronte di un retry dell'agente.
 
@@ -243,6 +244,7 @@ AI.POC-OrderToCash/
 │  ├─ Dusiburg.AI.O2C.Crm.Mcp/             # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
 │  ├─ Dusiburg.AI.O2C.Crm.Data/            # Modello EF Core del CRM mock, schema crm (M17)
 │  ├─ Dusiburg.AI.O2C.Mcp.Hosting/         # Infrastruttura comune dei server MCP: API key, filtro sui tool, errori (M21)
+│  ├─ Dusiburg.AI.O2C.Orchestration.Data/  # Stato dell'orchestrazione, schema orch: WorkflowState, poi ApprovalRequest (M11)
 │  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, ToolApprovalAgent
 │  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
 │  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
@@ -261,6 +263,7 @@ Chiavi di configurazione (user\-secrets in locale, secret di Container Apps o Ke
 | `MODEL_PROVIDER` | `anthropic` (default) oppure `ollama` — vedi §3.3 (M23) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude via API Anthropic: chiave (solo user-secrets o secret, M10) e modello, default `claude-sonnet-5` |
 | `OLLAMA_ENDPOINT`, `OLLAMA_MODEL` | solo con `MODEL_PROVIDER=ollama`; default `http://localhost:11434` e `qwen3.5:9b` |
+| `O2C_AGENT_MODE` | `multi` (default: Intake → Fulfillment → Order con handoff) oppure `single` (agente unico, per confronto) (M24) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | in locale punta al dashboard Aspire |
 | `ERP_MCP_URL`, `CRM_MCP_URL` | endpoint dei due server MCP |
 | `HUBSPOT_TOKEN` | solo se si usa il CRM reale |
@@ -364,7 +367,7 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M8 | §7, §13 | Nome e semantica del meccanismo di approvazione (`ToolApprovalAgent`), da confermare con lo spike | Da decidere (Fase 5) |
 | M9 | §5, §7 | Regole di dominio: riga non disponibile e SKU inesistente, solo EUR, prezzo del deal, riserva dello stock | Applicata (Fase 0) |
 | M10 | §10 | Autenticazione locale al modello con `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | Applicata (Fase 3) |
-| M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`) | Da decidere (Gate Fase 4) |
+| M11 | §8, §10 | Progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`); `WorkflowState` con PK `Id`, `CorrelationId` univoco, `(DealId, DealRevision)` univoco e lookup `WorkflowPhase`; schema creato da `DbInit` | Applicata (Fase 4) |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Da decidere (Gate Fase 5) |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
 | M14 | §10 | Repository `AI.POC-OrderToCash` (clone GitHub) invece di `o2c-agentic-poc` | Applicata (Fase 0) |
@@ -377,3 +380,4 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M21 | §10 | Progetto `src/Dusiburg.AI.O2C.Mcp.Hosting` con l'infrastruttura comune dei server MCP (API key, filtro sulle chiamate ai tool, errori strutturati), referenziato solo da `Erp.Mcp` e `Crm.Mcp` | Applicata (Fase 2) |
 | M22 | §6 | Errore di tool come risultato MCP `isError = true` con l'envelope `{ error: { code, message } }` come testo JSON; `structuredContent` solo per i risultati positivi | Applicata (Fase 2) |
 | M23 | §3.1, §3.3, §9, §10 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`, SDK `Anthropic` con `IChatClient`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`, chiavi `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`, Ollama nativo Windows con `qwen3.5:9b` misurato senza criteri vincolanti; Claude in Microsoft Foundry come variante Azure per la Fase 6 | Applicata (Fase 3) |
+| M24 | §5, §10 | Workflow a tre agenti con l'handoff di Agent Framework: modalità autonoma con limite di turni, tool locali di verdetto (`report_discarded`, `report_failed`) e terminazione sui fatti del run; esiti `Discarded`/`Failed` verificati e scritti sul CRM dall'orchestratore; `O2C_AGENT_MODE=multi\|single`; trigger RabbitMQ con consumer idempotente su deal e revisione | Applicata (Fase 4) |
