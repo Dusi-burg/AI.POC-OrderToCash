@@ -134,7 +134,7 @@ Due server MCP distinti, entrambi in C\# con l'SDK ufficiale `ModelContextProtoc
 
 | Tool | Input | Output |
 | --- | --- | --- |
-| `get_customer` | `vatNumber` oppure `email` (almeno uno) | `{ customerId, name, vatNumber, email, creditLimit, isBlocked }` o `null` |
+| `get_customer` | `vatNumber` oppure `email` (almeno uno) | `{ customer: { customerId, name, vatNumber, email, creditLimit, isBlocked } \| null }` (M20) |
 | `create_customer` | `name`, `vatNumber`, `email`, `address` | `{ customerId }` |
 | `check_stock` | `sku`, `quantity` | `{ sku, available: bool, onHand: int, leadTimeDays: int }` |
 | `create_order` | `customerId`, `lines[{ sku, quantity, unitPrice }]`, `externalRef`, `idempotencyKey` | `{ orderId, orderNumber, total, status }` |
@@ -153,7 +153,8 @@ Due server MCP distinti, entrambi in C\# con l'SDK ufficiale `ModelContextProtoc
 
 Regole comuni ai due server:
 
-- Ogni tool ritorna **errori strutturati** (`{ error: { code, message } }`), mai eccezioni non gestite: l'agente deve poter ragionare sull'errore.
+- `get_customer` (M20): un cliente non trovato è `{ customer: null }`, non un errore; così ogni tool ha un output strutturato a oggetto.
+- Ogni tool ritorna **errori strutturati** (`{ error: { code, message } }`), mai eccezioni non gestite: l'agente deve poter ragionare sull'errore. Sul protocollo MCP (M22) l'errore è un risultato con `isError = true` e l'envelope come testo JSON, senza `structuredContent`; i risultati positivi hanno `structuredContent` conforme all'`outputSchema` del tool. Codici: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL`.
 - Nessun tool esegue più di un'operazione di scrittura: la granularità è deliberatamente fine per rendere l'approvazione selettiva.
 - `create_order` è l'unico tool marcato come **sensibile** e soggetto a intercettazione (§7).
 
@@ -239,6 +240,7 @@ AI.POC-OrderToCash/
 │  ├─ Dusiburg.AI.O2C.Erp.Mcp/             # Server MCP sopra Erp.Api
 │  ├─ Dusiburg.AI.O2C.Crm.Mcp/             # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
 │  ├─ Dusiburg.AI.O2C.Crm.Data/            # Modello EF Core del CRM mock, schema crm (M17)
+│  ├─ Dusiburg.AI.O2C.Mcp.Hosting/         # Infrastruttura comune dei server MCP: API key, filtro sui tool, errori (M21)
 │  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, ToolApprovalAgent
 │  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
 │  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
@@ -369,3 +371,6 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M17 | §8, §10 | Enum persistiti come FK verso tabelle di lookup con PK tinyint = valore esplicito dell'enum (`OrderStatus`, `DealStage`, `DealStatus`); nessuna migration: database creato da zero dal modello con `tools/Dusiburg.AI.O2C.DbInit`; modelli dati nei progetti `src/Dusiburg.AI.O2C.Erp.Data` e `src/Dusiburg.AI.O2C.Crm.Data` | Applicata (Fase 1) |
 | M18 | §7, §8 | Nomi di tabella al singolare, senza pluralizzazioni (`Order`, `OrderStatus`, `Deal`, `ApprovalRequest`), anche nei nomi dei check constraint | Applicata (Fase 1) |
 | M19 | §8, §10 | Dati demo da una tabella unica (`src/Dusiburg.AI.O2C.Shared/Demo/DemoCatalog.cs`) inseriti da `tools/Dusiburg.AI.O2C.DbInit`; endpoint `POST /dev/reset` (solo Development) su `Crm.Mcp` e anche su `Erp.Api`; errori HTTP come ProblemDetails con estensione `code` del catalogo `ToolErrorCodes` | Applicata (Fase 1) |
+| M20 | §6.1 | `get_customer` restituisce `{ customer }`, con `customer: null` se il cliente non esiste (non è un errore) | Applicata (Fase 2) |
+| M21 | §10 | Progetto `src/Dusiburg.AI.O2C.Mcp.Hosting` con l'infrastruttura comune dei server MCP (API key, filtro sulle chiamate ai tool, errori strutturati), referenziato solo da `Erp.Mcp` e `Crm.Mcp` | Applicata (Fase 2) |
+| M22 | §6 | Errore di tool come risultato MCP `isError = true` con l'envelope `{ error: { code, message } }` come testo JSON; `structuredContent` solo per i risultati positivi | Applicata (Fase 2) |
