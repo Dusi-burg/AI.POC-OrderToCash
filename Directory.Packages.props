@@ -20,6 +20,15 @@
 
   <ItemGroup Label="Mcp">
     <PackageVersion Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
+    <PackageVersion Include="ModelContextProtocol.Core" Version="2.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Label="Agents">
+    <PackageVersion Include="Microsoft.Agents.AI" Version="1.21.0" />
+    <PackageVersion Include="Microsoft.Extensions.AI" Version="10.10.0" />
+    <PackageVersion Include="Anthropic" Version="12.47.0" />
+    <PackageVersion Include="OllamaSharp" Version="5.4.30" />
+    <PackageVersion Include="System.CommandLine" Version="2.0.12" />
   </ItemGroup>
 
   <ItemGroup Label="Data">

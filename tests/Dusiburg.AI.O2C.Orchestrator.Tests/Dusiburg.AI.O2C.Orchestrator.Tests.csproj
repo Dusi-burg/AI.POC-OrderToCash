@@ -22,6 +22,8 @@
   <ItemGroup>
     <!-- Helper di Shared e correlazione di ServiceDefaults (test 0.8) -->
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+    <!-- Agente, guardia e factory del modello (3.8): modello a copione e tool in memoria, nessuna chiamata reale -->
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Orchestrator\Dusiburg.AI.O2C.Orchestrator.csproj" />
   </ItemGroup>
 
 </Project>

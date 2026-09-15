@@ -2,10 +2,20 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
+    <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Extensions.AI" />
+    <PackageReference Include="Anthropic" />
+    <PackageReference Include="OllamaSharp" />
+    <PackageReference Include="ModelContextProtocol.Core" />
+    <PackageReference Include="System.CommandLine" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dusiburg.AI.O2C.Orchestrator.Tests" />
   </ItemGroup>
 
 </Project>

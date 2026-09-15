@@ -20,5 +20,7 @@ public static class O2CTelemetry
         public const string ToolName = "tool.name";
         public const string CorrelationId = "correlation.id";
         public const string ToolOutcome = "tool.outcome";
+        public const string DealId = "deal.id";
+        public const string DealOutcome = "o2c.outcome";
     }
 }

@@ -16,9 +16,11 @@ builder.AddExecutable(
     "--", "docker", "start", "--attach", builder.Configuration["RabbitMq:Container"] ?? "rabbitmq");
 
 // API key dei server MCP, usate dalla Fase 2 (Parameters:erp-mcp-api-key, Parameters:crm-mcp-api-key).
-// La credenziale del modello si aggiunge con il Gate di Fase 3 (M10).
 var erpMcpApiKey = builder.AddParameter("erp-mcp-api-key", secret: true);
 var crmMcpApiKey = builder.AddParameter("crm-mcp-api-key", secret: true);
+
+// Chiave del modello Claude (D40, M10): Parameters:anthropic-api-key. La CLI dell'orchestratore la legge dagli stessi user-secrets.
+var anthropicApiKey = builder.AddParameter("anthropic-api-key", secret: true);
 
 // Porte fisse dai launchSettings: Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104.
 var erpApi = builder.AddProject<Projects.Dusiburg_AI_O2C_Erp_Api>("erp-api")
@@ -42,7 +44,8 @@ builder.AddProject<Projects.Dusiburg_AI_O2C_Orchestrator>("orchestrator")
     .WithReference(erpMcp)
     .WithReference(crmMcp)
     .WithEnvironment("ERP_MCP_API_KEY", erpMcpApiKey)
-    .WithEnvironment("CRM_MCP_API_KEY", crmMcpApiKey);
+    .WithEnvironment("CRM_MCP_API_KEY", crmMcpApiKey)
+    .WithEnvironment("ANTHROPIC_API_KEY", anthropicApiKey);
 
 builder.AddProject<Projects.Dusiburg_AI_O2C_Approvals_Web>("approvals-web")
     .WithReference(sql)
