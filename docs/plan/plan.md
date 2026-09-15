@@ -19,7 +19,7 @@
 | 0 | [fase-0-setup-scaffolding.md](fase-0-setup-scaffolding.md) | Tooling, repo, solution, AppHost, ServiceDefaults, Shared | ✅ Completata (2026-09-14) |
 | 1 | [fase-1-sistemi-base.md](fase-1-sistemi-base.md) | Erp.Api + EF Core + seed; CRM mock | ✅ Completata (2026-09-14) |
 | 2 | [fase-2-server-mcp.md](fase-2-server-mcp.md) | Erp.Mcp e Crm.Mcp con i tool di §6 | ✅ Completata (2026-09-15) |
-| 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ⬜ Da iniziare |
+| 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ✅ Completata (2026-09-15) |
 | 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ⬜ Da iniziare |
 | 5 | [fase-5-human-in-the-loop.md](fase-5-human-in-the-loop.md) | Approvazione, sospensione e ripresa | ⬜ Da iniziare |
 | 6 | [fase-6-deploy-osservabilita.md](fase-6-deploy-osservabilita.md) | Azure (outline, da dettagliare) | ⬜ Outline |
@@ -117,6 +117,11 @@ flowchart LR
 | D36 | **Test di `Erp.Mcp` su `Erp.Api` reale** (utente, Gate F2, G2.7): casi felici e di dominio contro `Erp.Api` in-process su database `O2C_Test_<guid>`; `HttpMessageHandler` stub solo per gli errori upstream (500, timeout, eccezione) e per la verifica della correlazione (2026-09-15) | 2 |
 | D37 | **Proposte del Gate F2 accettate**: nomi dei tool senza prefisso (G2.2); una API key per server (`ERP_MCP_API_KEY`, `CRM_MCP_API_KEY`), il servizio non parte se manca (G2.3); MCP Inspector opzionale (G2.4); `create_order` con annotazione `destructive` e `_meta` `o2c.sensitive = true` (G2.5). SDK `ModelContextProtocol.AspNetCore` **2.2.0**, trasporto HTTP stateless, protocollo negoziato `2026-07-28` (spike S2) (2026-09-15) | 2, 3, 5 |
 | D38 | **Opzioni JSON dei tool MCP** (emerso dai test di Fase 2): i tool usano `O2CMcpServerExtensions.ToolSerializerOptions` (`JsonSerializerDefaults.Web` con resolver a reflection, null mantenuti) invece delle opzioni di default dell'SDK, che omettono le proprietà null (`{ customer: null }` → `{}`) e accettano gli enum anche come interi scavalcando `StrictStringEnumConverter`. In Fase 3 il lato client dell'orchestratore deve leggere e scrivere gli argomenti con le stesse regole (2026-09-15) | 2, 3 |
+| D39 | **Modello cloud: Claude via API Anthropic** (utente, Gate F3, G3.1): `MODEL_PROVIDER` = `anthropic` (default) \| `ollama`; **Azure OpenAI esce dal POC** (rivede D11). SDK ufficiale `Anthropic` per C#, che implementa `IChatClient`; modello **`claude-sonnet-5`** (scelta dell'utente fra Opus 5, Sonnet 5 e Haiku 4.5). Claude è disponibile anche in Microsoft Foundry: opzione per la Fase 6, non adottata ora (M23) (2026-09-15) | 3, 6 |
+| D40 | **Autenticazione al modello** (utente, Gate F3, G3.2): `ANTHROPIC_API_KEY` negli user-secrets, mai nel repo (chiude M10) (2026-09-15) | 3 |
+| D41 | **Modello locale** (utente, Gate F3, G3.5): Ollama nativo Windows (winget, CUDA sulla RTX 5060 Laptop 8 GB) con **`qwen3.5:9b`**; misurato con N run del flusso reale di D-1001 (completamento, tool e argomenti errati, latenza), **senza criteri di accettazione vincolanti** (D12 confermata). L'accettazione della Fase 3 si fa su Claude (2026-09-15) | 3 |
+| D42 | **Proposte del Gate F3 accettate**: prompt di sistema in inglese (G3.3); `System.CommandLine`, senza argomenti modalità worker (G3.4); solo D-1001 fino alla Fase 5 (G3.6) (2026-09-15) | 3 |
+| D43 | **Run di accettazione della Fase 3 con Claude Haiku 4.5** (utente, 2026-09-15): scelto il modello più leggero per la prova ("se funziona quello da 8 GB in locale non vedo perché debba avere problemi"), cambiato solo con `ANTHROPIC_MODEL=claude-haiku-4-5`; il default resta `claude-sonnet-5`. Haiku 4.5 non supporta l'adaptive thinking: la factory usa `AnthropicThinkingMode.Extended` per quel modello | 3 |
 
 ## Registro modifiche alla specifica
 
@@ -133,7 +138,8 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M7 | §3.1, §9 | Messaggistica locale: RabbitMQ (exchange `deal-closed-won`) | D6 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M8 | §7, §13 | Nome/semantica del meccanismo di approvazione (`ToolApprovalAgent`) da confermare dopo lo spike | D13 | Da decidere in F5 |
 | M9 | §5, §7 | Regole di dominio: parziale/bloccato, solo EUR, prezzo del deal, riserva stock | D20–D22 | ✅ Applicata in F0 (`docs/architettura.md`) |
-| M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Gate F3 | Da decidere in F3 |
+| M10 | §10 | Autenticazione locale al modello: `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | D40 | ✅ Applicata in F3 (`docs/architettura.md`) |
+| M23 | §3.1, §3.3, §9, §10, §16 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`; chiavi `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`; rimosse `AZURE_OPENAI_*`; Claude su Microsoft Foundry come opzione per la Fase 6 | D39–D41 | ✅ Applicata in F3 (`docs/architettura.md`) |
 | M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web) | Gate F4 | Da decidere in F4 |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Gate F5 | Da decidere in F5 |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F6 | Da decidere in F6 |

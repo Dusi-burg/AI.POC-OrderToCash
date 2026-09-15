@@ -64,7 +64,7 @@ Escludendo ERP e CRM, **l'unica dipendenza esterna realmente obbligatoria è l'e
 | Osservabilità | Aspire Dashboard (riceve OTLP nativamente) | Application Insights | No |
 | Identità agente | API key locali | Entra ID / Entra Agent ID | No per funzionare |
 | Approvazione umana | Pagina web `/approvals` | Teams Adaptive Card | No |
-| **Modello (LLM)** | Ollama + modello locale (vedi §3.3) | Azure OpenAI / Foundry | **Unico nodo reale** |
+| **Modello (LLM)** | Ollama + modello locale (vedi §3.3) | Claude via API Anthropic (M23); su Azure, Claude in Microsoft Foundry (Fase 6) | **Unico nodo reale** |
 
 ### 3.2 Topologia locale con .NET Aspire
 
@@ -79,9 +79,11 @@ Due conseguenze rilevanti per il progetto:
 
 L'Agent Framework è costruito sull'astrazione `IChatClient` di `Microsoft.Extensions.AI` e dispone di un provider Ollama documentato, oltre al supporto per qualunque endpoint OpenAI-compatibile. Il passaggio fra modello cloud e modello locale è quindi un cambio di configurazione, non di codice.
 
-**Requisito implementativo**: l'orchestratore non deve avere dipendenze dirette da Azure OpenAI — deve dipendere solo da `IChatClient`, con il provider risolto da configurazione (`MODEL_PROVIDER`).
+**Requisito implementativo**: l'orchestratore non deve avere dipendenze dirette dall'SDK di un provider — deve dipendere solo da `IChatClient`, con il provider risolto da configurazione (`MODEL_PROVIDER`).
 
-**Caveat tecnico**: il POC si regge su tool calling affidabile e output strutturato, che è esattamente la capacità dove i modelli piccoli (7–8B) diventano fragili — tool sbagliato, handoff mancato, JSON non conforme. Con un modello locale sottodimensionato si finisce a debuggare il modello invece dell'architettura. Servono modelli con tool calling solido (fascia 30B+ quantizzati in su) e hardware adeguato.
+**Provider del POC (M23)**: `MODEL_PROVIDER=anthropic` (default) usa **Claude via API Anthropic**, modello `claude-sonnet-5`, con l'SDK ufficiale `Anthropic` per C# che espone un `IChatClient`; `MODEL_PROVIDER=ollama` usa Ollama nativo su Windows con `qwen3.5:9b` (OllamaSharp, anch'esso `IChatClient`). Azure OpenAI non è più previsto; in Fase 6 la variante su Azure è Claude in Microsoft Foundry, con la stessa famiglia di modelli.
+
+**Caveat tecnico**: il POC si regge su tool calling affidabile e output strutturato, che è esattamente la capacità dove i modelli piccoli (7–8B) diventano fragili — tool sbagliato, handoff mancato, JSON non conforme. Con un modello locale sottodimensionato si finisce a debuggare il modello invece dell'architettura. Servono modelli con tool calling solido (fascia 30B+ quantizzati in su) e hardware adeguato. In Fase 3 il modello locale su una GPU da 8 GB (`qwen3.5:9b`) viene **misurato** sul flusso reale, senza criteri di accettazione vincolanti (D12, D41): l'accettazione si fa sul modello cloud.
 
 **Scelta operativa**: sviluppare con tutti i servizi in locale ma con l'endpoint del modello sul cloud (costo in token trascurabile per un POC), mantenendo il modello locale come variante configurabile da dimostrare — è un argomento commerciale concreto per clienti che non possono far uscire dati dal perimetro.
 
@@ -219,7 +221,7 @@ Enum e creazione dello schema (M17): ogni enum persistito è una FK verso una ta
 | Linguaggio / runtime | C\# / .NET 10 (`net10.0`, LTS — M1; upgrade a .NET 11 successivo) | identico |
 | Orchestrazione agenti | Microsoft Agent Framework (Handoff orchestration, ToolApprovalAgent) | identico |
 | Tool layer | MCP C\# SDK (`ModelContextProtocol`, v2.x) | identico |
-| Modello | Azure OpenAI / Foundry Models | Ollama via `IChatClient` (§3.3) |
+| Modello | Claude (`claude-sonnet-5`) via API Anthropic, SDK `Anthropic` per C# con `IChatClient`; su Azure, Claude in Microsoft Foundry (M23) | Ollama nativo Windows (`qwen3.5:9b`) via `IChatClient` (§3.3) |
 | Persistenza | Azure SQL serverless, EF Core | SQL Server LocalDB `(localdb)\localdev`, EF Core (M2) |
 | Messaggistica | Azure Service Bus, topic `deal-closed-won` | RabbitMQ in container Docker dentro WSL, exchange `deal-closed-won` (M7) |
 | CRM | HubSpot free tier (reale) oppure mock equivalente dietro lo stesso contratto MCP | mock persistente dentro `Crm.Mcp` dietro `ICrmClient` (M6) |
@@ -256,9 +258,9 @@ Chiavi di configurazione (user\-secrets in locale, secret di Container Apps o Ke
 
 | Chiave | Scopo |
 | --- | --- |
-| `MODEL_PROVIDER` | `azure-openai` (default) oppure `ollama` — vedi §3.3 |
-| `AZURE_OPENAI_ENDPOINT`, `AZURE_OPENAI_DEPLOYMENT` | modello di ragionamento |
-| `OLLAMA_ENDPOINT`, `OLLAMA_MODEL` | solo con `MODEL_PROVIDER=ollama` |
+| `MODEL_PROVIDER` | `anthropic` (default) oppure `ollama` — vedi §3.3 (M23) |
+| `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude via API Anthropic: chiave (solo user-secrets o secret, M10) e modello, default `claude-sonnet-5` |
+| `OLLAMA_ENDPOINT`, `OLLAMA_MODEL` | solo con `MODEL_PROVIDER=ollama`; default `http://localhost:11434` e `qwen3.5:9b` |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | in locale punta al dashboard Aspire |
 | `ERP_MCP_URL`, `CRM_MCP_URL` | endpoint dei due server MCP |
 | `HUBSPOT_TOKEN` | solo se si usa il CRM reale |
@@ -361,7 +363,7 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M7 | §3.1, §3.2, §9, §10 | Messaggistica locale su RabbitMQ (container in WSL tenuto attivo dall'AppHost), exchange `deal-closed-won` | Applicata (Fase 0) |
 | M8 | §7, §13 | Nome e semantica del meccanismo di approvazione (`ToolApprovalAgent`), da confermare con lo spike | Da decidere (Fase 5) |
 | M9 | §5, §7 | Regole di dominio: riga non disponibile e SKU inesistente, solo EUR, prezzo del deal, riserva dello stock | Applicata (Fase 0) |
-| M10 | §10 | Eventuale `AZURE_OPENAI_API_KEY` per l'autenticazione locale al modello | Da decidere (Gate Fase 3) |
+| M10 | §10 | Autenticazione locale al modello con `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | Applicata (Fase 3) |
 | M11 | §10 | Eventuale progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`) | Da decidere (Gate Fase 4) |
 | M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Da decidere (Gate Fase 5) |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
@@ -374,3 +376,4 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M20 | §6.1 | `get_customer` restituisce `{ customer }`, con `customer: null` se il cliente non esiste (non è un errore) | Applicata (Fase 2) |
 | M21 | §10 | Progetto `src/Dusiburg.AI.O2C.Mcp.Hosting` con l'infrastruttura comune dei server MCP (API key, filtro sulle chiamate ai tool, errori strutturati), referenziato solo da `Erp.Mcp` e `Crm.Mcp` | Applicata (Fase 2) |
 | M22 | §6 | Errore di tool come risultato MCP `isError = true` con l'envelope `{ error: { code, message } }` come testo JSON; `structuredContent` solo per i risultati positivi | Applicata (Fase 2) |
+| M23 | §3.1, §3.3, §9, §10 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`, SDK `Anthropic` con `IChatClient`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`, chiavi `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`, Ollama nativo Windows con `qwen3.5:9b` misurato senza criteri vincolanti; Claude in Microsoft Foundry come variante Azure per la Fase 6 | Applicata (Fase 3) |
