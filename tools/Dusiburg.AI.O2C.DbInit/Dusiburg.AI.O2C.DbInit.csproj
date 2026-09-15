@@ -9,6 +9,7 @@
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Data\Dusiburg.AI.O2C.Erp.Data.csproj" />
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Crm.Data\Dusiburg.AI.O2C.Crm.Data.csproj" />
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Orchestration.Data\Dusiburg.AI.O2C.Orchestration.Data.csproj" />
   </ItemGroup>
 
 </Project>

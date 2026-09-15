@@ -1,17 +1,26 @@
 <Project Sdk="Microsoft.NET.Sdk.Worker">
 
+  <PropertyGroup>
+    <!-- Agent Framework Workflows marca alcune API come sperimentali (handoff, modalità autonoma). -->
+    <NoWarn>$(NoWarn);MAAI001;MEAI001</NoWarn>
+  </PropertyGroup>
+
   <ItemGroup>
     <PackageReference Include="Microsoft.Extensions.Hosting" />
     <PackageReference Include="Microsoft.Agents.AI" />
+    <PackageReference Include="Microsoft.Agents.AI.Workflows" />
     <PackageReference Include="Microsoft.Extensions.AI" />
     <PackageReference Include="Anthropic" />
     <PackageReference Include="OllamaSharp" />
     <PackageReference Include="ModelContextProtocol.Core" />
     <PackageReference Include="System.CommandLine" />
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Aspire.RabbitMQ.Client" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Orchestration.Data\Dusiburg.AI.O2C.Orchestration.Data.csproj" />
   </ItemGroup>
 
   <ItemGroup>

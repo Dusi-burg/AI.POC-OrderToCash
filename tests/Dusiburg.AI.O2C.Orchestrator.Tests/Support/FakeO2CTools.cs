@@ -1,17 +1,24 @@
+using System.Text.Json;
 using Dusiburg.AI.O2C.Orchestrator.Tools;
 using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Dusiburg.AI.O2C.Shared.Contracts.Erp;
+using Dusiburg.AI.O2C.Shared.Errors;
 using Microsoft.Extensions.AI;
 
 namespace Dusiburg.AI.O2C.Orchestrator.Tests.Support;
 
-/// <summary>Tool ERP e CRM in memoria con le stesse firme dei server MCP; registrano gli argomenti ricevuti.</summary>
-internal sealed class FakeO2CTools
+/// <summary>
+/// Tool ERP e CRM in memoria con le stesse firme dei server MCP; registrano gli argomenti ricevuti.
+/// Il deal e uno SKU inesistente sono configurabili per gli scenari del workflow.
+/// </summary>
+internal sealed class FakeO2CTools(DealDto? deal = null, string? unknownSku = null)
 {
     public const string OrderNumber = "SO-2026-000001";
 
     public static readonly DealDto Deal = new("D-1001", 3, "Ricambi cuscinetti linea 2", 480m, "EUR", "ClosedWon", "C-01",
         [new DealLineItemDto("IND-BRG-001", 40, 12m)]);
+
+    private readonly DealDto _deal = deal ?? Deal;
 
     public Dictionary<string, object?>? CreateOrderArguments { get; private set; }
 
@@ -19,12 +26,16 @@ internal sealed class FakeO2CTools
 
     public DealStatus? UpdatedStatus { get; private set; }
 
+    public string? UpdatedNote { get; private set; }
+
     public AgentTool[] All() =>
     [
-        Tool(AgentToolNames.GetDeal, (string dealId) => Deal),
+        Tool(AgentToolNames.GetDeal, (string dealId) => _deal),
         Tool(AgentToolNames.GetCompany, (string companyId) =>
             new CompanyDto(companyId, "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", "Via dell'Industria 12")),
-        Tool(AgentToolNames.CheckStock, (string sku, int quantity) => new StockCheckDto(sku, true, 500, 3)),
+        Tool(AgentToolNames.CheckStock, (string sku, int quantity) => sku == unknownSku
+            ? JsonSerializer.SerializeToElement(ToolErrorResponse.Create(ToolErrorCodes.NotFound, $"SKU {sku} non trovato."), JsonSerializerOptions.Web)
+            : JsonSerializer.SerializeToElement(new StockCheckDto(sku, true, 500, 3), JsonSerializerOptions.Web)),
         Tool(AgentToolNames.GetCustomer, (string? vatNumber, string? email) =>
             new GetCustomerResponse(new CustomerDto(1, "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", 50_000m, false))),
         Tool(AgentToolNames.CreateCustomer, (string name, string vatNumber, string email, string address) => new CreateCustomerResponse(99)),
@@ -35,9 +46,10 @@ internal sealed class FakeO2CTools
 
             return new CreateOrderResponse(Guid.Parse("0199a000-0000-7000-8000-000000000001"), OrderNumber, 480m, OrderStatus.Confirmed);
         }),
-        Tool(AgentToolNames.UpdateDeal, (string dealId, DealStatus status, string? erpOrderNumber, string? note) =>
+        Tool(AgentToolNames.UpdateDeal, (string dealId, DealStatus status, string? erpOrderNumber = null, string? note = null) =>
         {
             UpdatedStatus = status;
+            UpdatedNote = note;
 
             return new UpdateDealResponse(true);
         }),

@@ -25,9 +25,16 @@ internal sealed class ScriptedChatClient(params Func<IReadOnlyList<ChatMessage>,
         return Task.FromResult(steps[_next++](messages.ToList()));
     }
 
-    public IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
-        IEnumerable<ChatMessage> messages, ChatOptions? options = null, CancellationToken cancellationToken = default) =>
-        throw new NotSupportedException("Il copione non supporta lo streaming.");
+    public async IAsyncEnumerable<ChatResponseUpdate> GetStreamingResponseAsync(
+        IEnumerable<ChatMessage> messages, ChatOptions? options = null, [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        var response = await GetResponseAsync(messages, options, cancellationToken);
+
+        foreach (var update in response.ToChatResponseUpdates())
+        {
+            yield return update;
+        }
+    }
 
     public object? GetService(Type serviceType, object? serviceKey = null) => null;
 

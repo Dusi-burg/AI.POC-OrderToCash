@@ -1,0 +1,13 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Stato dell'orchestrazione (schema orch, D45): usato da Orchestrator, dal tool DbInit e in Fase 5 da Approvals.Web. Nessuna migration (D30). -->
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Shared\Dusiburg.AI.O2C.Shared.csproj" />
+  </ItemGroup>
+
+</Project>

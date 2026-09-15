@@ -20,13 +20,16 @@ public sealed class GuardedToolFunction : DelegatingAIFunction
 
     private readonly AgentTool _tool;
     private readonly DealRunContext _context;
+    private readonly AgentScope _scope;
     private readonly JsonElement _schema;
 
-    public GuardedToolFunction(AgentTool tool, DealRunContext context)
+    /// <param name="scope">Agente che usa il tool; di default quello del contesto (agente singolo).</param>
+    public GuardedToolFunction(AgentTool tool, DealRunContext context, AgentScope? scope = null)
         : base(tool.Function)
     {
         _tool = tool;
         _context = context;
+        _scope = scope ?? context.DefaultScope;
         _schema = tool.QualifiedName == AgentToolNames.CreateOrder
             ? WithoutProperties(tool.Function.JsonSchema, InjectedCreateOrderArguments)
             : tool.Function.JsonSchema;
@@ -39,7 +42,7 @@ public sealed class GuardedToolFunction : DelegatingAIFunction
     protected override async ValueTask<object?> InvokeCoreAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         using var activity = OrchestratorTelemetry.Source.StartActivity($"tool.call {QualifiedName}");
-        activity?.SetTag(O2CTelemetry.Attributes.AgentName, _context.AgentName);
+        activity?.SetTag(O2CTelemetry.Attributes.AgentName, _scope.AgentName);
         activity?.SetTag(O2CTelemetry.Attributes.ToolName, QualifiedName);
         activity?.SetTag(O2CTelemetry.Attributes.CorrelationId, _context.CorrelationId);
 
@@ -63,16 +66,16 @@ public sealed class GuardedToolFunction : DelegatingAIFunction
                 activity?.SetStatus(ActivityStatusCode.Error, outcome);
             }
 
-            _context.RecordCall(new ToolCallRecord(QualifiedName, outcome, Stopwatch.GetElapsedTime(started).TotalMilliseconds));
+            _context.RecordCall(new ToolCallRecord(QualifiedName, outcome, Stopwatch.GetElapsedTime(started).TotalMilliseconds, _scope.AgentName));
         }
     }
 
     private async Task<(ToolResult Result, object? ReturnValue)> InvokeGuardedAsync(AIFunctionArguments arguments, CancellationToken cancellationToken)
     {
         // Difesa in profondità: il catalogo offre all'agente solo i tool consentiti, ma la guardia non si fida.
-        if (!_context.AllowedTools.Contains(QualifiedName))
+        if (!_scope.AllowedTools.Contains(QualifiedName))
         {
-            return Reject(ToolErrorCodes.Unauthorized, $"Tool '{Name}' is not allowed for agent {_context.AgentName}.");
+            return Reject(ToolErrorCodes.Unauthorized, $"Tool '{Name}' is not allowed for agent {_scope.AgentName}.");
         }
 
         if (QualifiedName == AgentToolNames.CreateOrder)

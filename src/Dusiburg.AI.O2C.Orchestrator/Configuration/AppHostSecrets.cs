@@ -18,6 +18,8 @@ internal static class AppHostSecrets
         ("Parameters:erp-mcp-api-key", "ERP_MCP_API_KEY"),
         ("Parameters:crm-mcp-api-key", "CRM_MCP_API_KEY"),
         ("Parameters:anthropic-api-key", "ANTHROPIC_API_KEY"),
+        ("ConnectionStrings:sql", "ConnectionStrings:sql"),
+        ("ConnectionStrings:rabbitmq", "ConnectionStrings:rabbitmq"),
     ];
 
     public static void AddAppHostSecretsForCli(this IConfigurationManager configuration)

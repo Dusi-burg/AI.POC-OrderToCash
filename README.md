@@ -5,7 +5,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 - Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
 - Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
 
-> **Stato**: Fase 2 — server MCP. `Erp.Mcp` e `Crm.Mcp` espongono i tool di §6 su `/mcp` (HTTP stateless, API key, errori strutturati, uno span per tool) sopra l'ERP mock (`Erp.Api`) e il CRM mock della Fase 1, con i dati demo di [docs/demo.md](docs/demo.md); nessun agente ancora. Correlazione, telemetria e gestione dei segreti sono cablate dalla Fase 0.
+> **Stato**: Fase 4 — multi-agente. Un evento `deal-closed-won` su RabbitMQ avvia il workflow IntakeAgent → FulfillmentAgent → OrderAgent (handoff di Agent Framework), che usa i tool MCP di `Erp.Mcp` e `Crm.Mcp` e porta il deal a `OrderCreated`, `Discarded` o `Failed`; stato del workflow nello schema `orch`. Approvazione umana in arrivo con la Fase 5. Dati demo in [docs/demo.md](docs/demo.md).
 
 ## Struttura
 
@@ -128,6 +128,16 @@ $env:MODEL_PROVIDER = "ollama"; dotnet run --project src/Dusiburg.AI.O2C.Orchest
 - In Development la CLI legge le API key (MCP e modello) dagli user-secrets dell'AppHost e invia la telemetria al dashboard (`O2C_CLI_OTLP_ENDPOINT`, default `https://localhost:21058`): la traccia `o2c.process_deal` contiene gli span `tool.call` e le chiamate MCP → Erp.Api.
 - Stampa l'esito in JSON; exit code `0` ordine creato, `1` deal non concluso, `2` errore. Stato e numero d'ordine vengono dai risultati dei tool, non dal riassunto del modello.
 - Senza argomenti l'orchestratore resta un worker (sotto l'AppHost).
+
+## Workflow multi-agente e trigger (Fase 4)
+
+- `POST /dev/deals/{id}/close-won` sul CRM porta il deal in `ClosedWon` e pubblica `deal-closed-won` (exchange topic `deal-closed-won`, `message-id = {dealId}:{revision}`). Il worker dell'orchestratore consuma dalla coda `o2c.orchestrator.deal-closed-won` (`prefetch = 1`, fino a 3 nuovi tentativi, poi `o2c.orchestrator.deal-closed-won.dlq`).
+- Workflow: **IntakeAgent** (`get_deal`, `get_company`; se il deal non è valido `report_discarded`) → **FulfillmentAgent** (`check_stock`; SKU inesistente → `report_failed`) → **OrderAgent** (cliente, ordine, `update_deal`). Gli esiti `Discarded`/`Failed` li verifica e li scrive sul CRM l'orchestratore.
+- `O2C_AGENT_MODE=single` riattiva l'agente unico della Fase 3 (per confronto); default `multi`.
+- Stato in `orch.WorkflowState` (una riga per deal e revisione): un evento duplicato non avvia un secondo workflow; la CLI invece rielabora sulla stessa riga.
+- Traccia: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` per agente, `agent.handoff` (`handoff.from`, `handoff.to`, `handoff.reason`), `tool.call`, chiamate MCP → `Erp.Api`.
+- **Ripetere la demo**: `POST /dev/reset` su ERP e CRM **non** pulisce `orch.WorkflowState`. Per rilanciare lo stesso deal da evento: `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` (AppHost fermo) oppure cancellare le righe di `orch.WorkflowState`.
+- Con l'AppHost appena avviato, attendere nel dashboard il log dell'orchestratore "In ascolto su o2c.orchestrator.deal-closed-won" prima del primo `close-won`: la coda la dichiara il consumer.
 
 ## Demo
 

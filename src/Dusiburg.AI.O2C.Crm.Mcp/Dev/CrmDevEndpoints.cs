@@ -1,6 +1,8 @@
 using Dusiburg.AI.O2C.Crm.Data;
 using Dusiburg.AI.O2C.Crm.Data.Entities;
 using Dusiburg.AI.O2C.Crm.Data.Seed;
+using Dusiburg.AI.O2C.Crm.Mcp.Messaging;
+using Dusiburg.AI.O2C.Shared.Contracts.Messaging;
 using Dusiburg.AI.O2C.ServiceDefaults.Problems;
 using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Microsoft.AspNetCore.Http.HttpResults;
@@ -76,9 +78,12 @@ internal static class CrmDevEndpoints
         return detail is null ? ToolProblems.NotFound($"Deal {dealId} non trovato.") : TypedResults.Ok(detail);
     }
 
-    /// <summary>Porta il deal in stage <c>ClosedWon</c> (la revisione non cambia: lo stage non è una modifica commerciale, G1.3).</summary>
+    /// <summary>
+    /// Porta il deal in stage <c>ClosedWon</c> (la revisione non cambia: lo stage non è una modifica commerciale, G1.3) e pubblica
+    /// <c>deal-closed-won</c> (4.5). Ogni chiamata pubblica: chiamarla due volte produce un evento duplicato, che l'orchestratore ignora.
+    /// </summary>
     private static async Task<Results<Ok<DevDealDetail>, ProblemHttpResult>> CloseWonAsync(
-        string dealId, CrmDbContext db, TimeProvider timeProvider, CancellationToken cancellationToken)
+        string dealId, CrmDbContext db, TimeProvider timeProvider, DealEventPublisher publisher, CancellationToken cancellationToken)
     {
         var deal = await db.Deals.SingleOrDefaultAsync(d => d.Code == dealId, cancellationToken);
 
@@ -94,6 +99,8 @@ internal static class CrmDevEndpoints
 
             await db.SaveChangesAsync(cancellationToken);
         }
+
+        await publisher.PublishClosedWonAsync(new DealClosedWon(deal.Code, deal.Revision, timeProvider.GetUtcNow()), cancellationToken);
 
         return TypedResults.Ok((await LoadDetailAsync(db, dealId, cancellationToken))!);
     }

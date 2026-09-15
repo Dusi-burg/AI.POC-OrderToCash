@@ -22,14 +22,20 @@ public sealed record DealProcessingResult(
     bool ModelOutcomeValid,
     string Provider,
     string Model,
-    IReadOnlyList<ToolCallRecord> ToolCalls);
+    IReadOnlyList<ToolCallRecord> ToolCalls)
+{
+    /// <summary>Passaggi fra agenti (solo nel workflow a tre agenti).</summary>
+    public IReadOnlyList<HandoffRecord> Handoffs { get; init; } = [];
+}
 
 /// <summary>
 /// Un solo agente che porta un deal fino all'ordine ERP (3.4): nessun handoff, nessuna approvazione.
 /// </summary>
-public sealed class SingleOrderAgent(IModelClientFactory models, IToolCatalog toolCatalog, ILogger<SingleOrderAgent> logger)
+public sealed class SingleOrderAgent(IModelClientFactory models, IToolCatalog toolCatalog, ILogger<SingleOrderAgent> logger) : IDealAgent
 {
     public const string AgentName = "SingleOrderAgent";
+
+    public string Mode => AgentModes.Single;
 
     /// <summary>Un tentativo più una richiesta di riformulare l'esito, senza rifare i tool.</summary>
     public const int MaxOutcomeAttempts = 2;

@@ -5,24 +5,37 @@ using Microsoft.Extensions.AI;
 
 namespace Dusiburg.AI.O2C.Orchestrator.Tools;
 
-public sealed record ToolCallRecord(string Tool, string Outcome, double DurationMs);
+public sealed record ToolCallRecord(string Tool, string Outcome, double DurationMs, string? Agent = null);
+
+public sealed record HandoffRecord(string From, string To, string? Reason);
+
+/// <summary>Verdetto di arresto dichiarato da un agente con un tool locale (<c>report_discarded</c>, <c>report_failed</c>).</summary>
+public sealed record AgentVerdict(string Agent, DealStatus Status, string Reason);
+
+/// <summary>Agente che usa i tool: nome per telemetria e allow-list dei tool consentiti.</summary>
+public sealed record AgentScope(string AgentName, IReadOnlySet<string> AllowedTools);
 
 /// <summary>
-/// Stato di un run su un deal (3.3): i fatti arrivano dai risultati reali dei tool, non dai riassunti del modello.
+/// Stato di un run su un deal (3.3, 4.2): i fatti arrivano dai risultati reali dei tool, non dai riassunti del modello.
+/// Nel workflow a tre agenti è il contesto trasferito fra gli agenti e il contenuto di <c>WorkflowState.StateJson</c>.
 /// </summary>
 public sealed class DealRunContext(string dealId, string correlationId, string agentName, IReadOnlySet<string> allowedTools)
 {
     private readonly Lock _gate = new();
     private readonly List<ToolCallRecord> _calls = [];
     private readonly List<StockCheckDto> _stock = [];
+    private readonly List<HandoffRecord> _handoffs = [];
 
     public string DealId => dealId;
 
     public string CorrelationId => correlationId;
 
-    public string AgentName => agentName;
+    /// <summary>Ambito di default dei tool (agente singolo); nel workflow ogni agente ha il proprio.</summary>
+    public AgentScope DefaultScope { get; } = new(agentName, allowedTools);
 
-    public IReadOnlySet<string> AllowedTools => allowedTools;
+    public string AgentName => DefaultScope.AgentName;
+
+    public IReadOnlySet<string> AllowedTools => DefaultScope.AllowedTools;
 
     public DealDto? Deal { get; private set; }
 
@@ -33,6 +46,11 @@ public sealed class DealRunContext(string dealId, string correlationId, string a
     public CreateOrderResponse? Order { get; private set; }
 
     public DealStatus? CrmStatus { get; private set; }
+
+    public AgentVerdict? Verdict { get; private set; }
+
+    /// <summary>Il workflow può terminare: verdetto di arresto registrato, oppure ordine creato e deal aggiornato.</summary>
+    public bool IsTerminal => Verdict is not null || (Order is not null && CrmStatus == DealStatus.OrderCreated);
 
     public IReadOnlyList<StockCheckDto> Stock
     {
@@ -56,11 +74,61 @@ public sealed class DealRunContext(string dealId, string correlationId, string a
         }
     }
 
+    public IReadOnlyList<HandoffRecord> Handoffs
+    {
+        get
+        {
+            lock (_gate)
+            {
+                return [.. _handoffs];
+            }
+        }
+    }
+
+    /// <summary>Fatti del run in JSON, per <c>WorkflowState.StateJson</c> e per i log.</summary>
+    public string ToStateJson()
+    {
+        lock (_gate)
+        {
+            return JsonSerializer.Serialize(new
+            {
+                DealId,
+                CorrelationId,
+                Deal,
+                Company,
+                Stock = _stock,
+                CustomerId,
+                Order,
+                CrmStatus,
+                Verdict,
+                Handoffs = _handoffs,
+                ToolCalls = _calls
+            }, AgentJson.Options);
+        }
+    }
+
     internal void RecordCall(ToolCallRecord call)
     {
         lock (_gate)
         {
             _calls.Add(call);
+        }
+    }
+
+    internal void RecordHandoff(HandoffRecord handoff)
+    {
+        lock (_gate)
+        {
+            _handoffs.Add(handoff);
+        }
+    }
+
+    internal void RecordVerdict(AgentVerdict verdict)
+    {
+        lock (_gate)
+        {
+            // Il primo verdetto vale: un agente non può ribaltare quello di un altro.
+            Verdict ??= verdict;
         }
     }
 

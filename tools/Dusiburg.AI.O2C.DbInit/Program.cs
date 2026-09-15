@@ -26,7 +26,7 @@ Console.WriteLine($"Ricreo il database '{target.InitialCatalog}' su '{target.Dat
 await O2CDatabaseInitializer.RecreateAsync(connectionString, seed);
 
 Console.WriteLine(seed
-    ? "Fatto: schemi erp e crm creati, lookup popolate dagli enum, dati demo inseriti."
-    : "Fatto: schemi erp e crm creati, lookup popolate dagli enum, nessun dato demo.");
+    ? "Fatto: schemi erp, crm e orch creati, lookup popolate dagli enum, dati demo inseriti."
+    : "Fatto: schemi erp, crm e orch creati, lookup popolate dagli enum, nessun dato demo.");
 
 return 0;

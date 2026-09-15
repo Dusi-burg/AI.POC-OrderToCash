@@ -1,6 +1,7 @@
 using Dusiburg.AI.O2C.Crm.Data;
 using Dusiburg.AI.O2C.Crm.Mcp.Crm;
 using Dusiburg.AI.O2C.Crm.Mcp.Dev;
+using Dusiburg.AI.O2C.Crm.Mcp.Messaging;
 using Dusiburg.AI.O2C.Crm.Mcp.Tools;
 using Dusiburg.AI.O2C.Mcp.Hosting;
 using Dusiburg.AI.O2C.ServiceDefaults.Problems;
@@ -16,6 +17,10 @@ builder.AddSqlServerDbContext<CrmDbContext>("sql");
 builder.Services.AddProblemDetails(ToolProblems.Configure);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<ICrmClient, MockCrmClient>();
+
+// Broker RabbitMQ (D46): connessione dalla connection string "rabbitmq", health check e tracing dell'integrazione Aspire.
+builder.AddRabbitMQClient("rabbitmq");
+builder.Services.AddSingleton<DealEventPublisher>();
 
 // Server MCP stateless su /mcp con API key (CRM_MCP_API_KEY, passata dall'AppHost) e filtro comune sui tool (D35).
 builder.AddO2CMcpServer(O2CTelemetry.Sources.McpCrm, "CRM_MCP_API_KEY")

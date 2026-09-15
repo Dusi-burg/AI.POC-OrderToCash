@@ -2,6 +2,7 @@ using Dusiburg.AI.O2C.Crm.Data;
 using Dusiburg.AI.O2C.Crm.Data.Seed;
 using Dusiburg.AI.O2C.Erp.Data;
 using Dusiburg.AI.O2C.Erp.Data.Seed;
+using Dusiburg.AI.O2C.Orchestration.Data;
 using Microsoft.Data.SqlClient;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Infrastructure;
@@ -39,6 +40,10 @@ public static class O2CDatabaseInitializer
 
         await crm.Database.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(cancellationToken);
 
+        await using var orchestration = CreateOrchestration(connectionString);
+
+        await orchestration.Database.GetService<IRelationalDatabaseCreator>().CreateTablesAsync(cancellationToken);
+
         if (seed)
         {
             await ErpSeeder.SeedAsync(erp, cancellationToken);
@@ -59,4 +64,7 @@ public static class O2CDatabaseInitializer
 
     private static CrmDbContext CreateCrm(string connectionString) =>
         new(new DbContextOptionsBuilder<CrmDbContext>().UseSqlServer(connectionString).Options);
+
+    private static OrchestrationDbContext CreateOrchestration(string connectionString) =>
+        new(new DbContextOptionsBuilder<OrchestrationDbContext>().UseSqlServer(connectionString).Options);
 }
