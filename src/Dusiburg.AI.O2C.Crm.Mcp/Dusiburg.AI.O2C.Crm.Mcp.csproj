@@ -7,6 +7,7 @@
   <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
     <ProjectReference Include="..\Dusiburg.AI.O2C.Crm.Data\Dusiburg.AI.O2C.Crm.Data.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Mcp.Hosting\Dusiburg.AI.O2C.Mcp.Hosting.csproj" />
   </ItemGroup>
 
 </Project>

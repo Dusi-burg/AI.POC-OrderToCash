@@ -7,6 +7,7 @@
     <Project Path="src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Erp.Data/Dusiburg.AI.O2C.Erp.Data.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Erp.Mcp/Dusiburg.AI.O2C.Erp.Mcp.csproj" />
+    <Project Path="src/Dusiburg.AI.O2C.Mcp.Hosting/Dusiburg.AI.O2C.Mcp.Hosting.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Orchestrator/Dusiburg.AI.O2C.Orchestrator.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.ServiceDefaults/Dusiburg.AI.O2C.ServiceDefaults.csproj" />
     <Project Path="src/Dusiburg.AI.O2C.Shared/Dusiburg.AI.O2C.Shared.csproj" />

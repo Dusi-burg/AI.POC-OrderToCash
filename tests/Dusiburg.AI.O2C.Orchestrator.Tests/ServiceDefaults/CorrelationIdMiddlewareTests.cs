@@ -14,10 +14,12 @@ public class CorrelationIdMiddlewareTests
     [Test]
     public async Task InvokeAsync_WithoutHeader_GeneratesId()
     {
+        //SETUP
         string? seen = null;
         var middleware = CreateMiddleware(() => seen = _context.Current);
         var http = new DefaultHttpContext();
 
+        //SUT
         await middleware.InvokeAsync(http);
 
         Assert.That(CorrelationId.IsValid(seen), Is.True);
@@ -27,11 +29,13 @@ public class CorrelationIdMiddlewareTests
     [Test]
     public async Task InvokeAsync_WithValidHeader_KeepsInboundId()
     {
+        //SETUP
         string? seen = null;
         var middleware = CreateMiddleware(() => seen = _context.Current);
         var http = new DefaultHttpContext();
         http.Request.Headers[CorrelationId.HeaderName] = "deal-D-1001-run-42";
 
+        //SUT
         await middleware.InvokeAsync(http);
 
         Assert.That(seen, Is.EqualTo("deal-D-1001-run-42"));
@@ -41,11 +45,13 @@ public class CorrelationIdMiddlewareTests
     [Test]
     public async Task InvokeAsync_WithInvalidHeader_GeneratesNewId()
     {
+        //SETUP
         string? seen = null;
         var middleware = CreateMiddleware(() => seen = _context.Current);
         var http = new DefaultHttpContext();
         http.Request.Headers[CorrelationId.HeaderName] = "bad value\r\ninjected: header";
 
+        //SUT
         await middleware.InvokeAsync(http);
 
         Assert.That(CorrelationId.IsValid(seen), Is.True);
@@ -55,11 +61,13 @@ public class CorrelationIdMiddlewareTests
     [Test]
     public async Task InvokeAsync_TagsCurrentActivity()
     {
+        //SETUP
         using var activity = new Activity("test-request").Start();
         var middleware = CreateMiddleware(() => { });
         var http = new DefaultHttpContext();
         http.Request.Headers[CorrelationId.HeaderName] = "corr-activity";
 
+        //SUT
         await middleware.InvokeAsync(http);
 
         Assert.That(activity.GetTagItem(O2CTelemetry.Attributes.CorrelationId), Is.EqualTo("corr-activity"));
@@ -69,8 +77,10 @@ public class CorrelationIdMiddlewareTests
     [Test]
     public async Task InvokeAsync_ClearsAmbientIdAfterRequest()
     {
+        //SETUP
         var middleware = CreateMiddleware(() => { });
 
+        //SUT
         await middleware.InvokeAsync(new DefaultHttpContext());
 
         Assert.That(_context.Current, Is.Null);

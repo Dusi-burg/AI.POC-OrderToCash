@@ -21,6 +21,9 @@ public static class ToolProblems
     public static ProblemHttpResult Conflict(string detail) =>
         Create(StatusCodes.Status409Conflict, ToolErrorCodes.Conflict, "Conflitto", detail);
 
+    public static ProblemHttpResult Unauthorized(string detail) =>
+        Create(StatusCodes.Status401Unauthorized, ToolErrorCodes.Unauthorized, "Non autorizzato", detail);
+
     /// <summary>
     /// Per <c>AddProblemDetails</c>: dà un <c>code</c> anche ai ProblemDetails generati dal framework
     /// (binding non valido, eccezioni non gestite), in base allo status.

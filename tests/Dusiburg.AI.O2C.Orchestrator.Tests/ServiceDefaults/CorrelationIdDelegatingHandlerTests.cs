@@ -11,10 +11,12 @@ public class CorrelationIdDelegatingHandlerTests
     [Test]
     public async Task SendAsync_WithAmbientId_AddsHeader()
     {
+        //SETUP
         var inner = new CapturingHandler();
 
         using (_context.Begin("corr-ambient"))
         {
+            //SUT
             await SendAsync(inner);
         }
 
@@ -24,8 +26,10 @@ public class CorrelationIdDelegatingHandlerTests
     [Test]
     public async Task SendAsync_WithoutAmbientId_DoesNotAddHeader()
     {
+        //SETUP
         var inner = new CapturingHandler();
 
+        //SUT
         await SendAsync(inner);
 
         Assert.That(inner.CorrelationIdHeader, Is.Null);
@@ -34,10 +38,12 @@ public class CorrelationIdDelegatingHandlerTests
     [Test]
     public async Task SendAsync_WithExplicitHeader_KeepsIt()
     {
+        //SETUP
         var inner = new CapturingHandler();
 
         using (_context.Begin("corr-ambient"))
         {
+            //SUT
             await SendAsync(inner, request => request.Headers.Add(CorrelationId.HeaderName, "corr-explicit"));
         }
 

@@ -1,0 +1,15 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Infrastruttura comune dei server MCP (D35, M21): API key, filtro sulle chiamate ai tool, errori strutturati. -->
+
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+
+    <PackageReference Include="ModelContextProtocol.AspNetCore" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -11,9 +11,11 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetCustomer_ByVatNumber_ReturnsCustomer()
     {
+        //SETUP
         var expected = DemoCatalog.Customers.Single(c => c.IsBlocked);
         using var client = Factory.CreateClient();
 
+        //SUT
         var customer = await client.GetFromJsonAsync<CustomerDto>($"/api/customers?vatNumber={expected.VatNumber}", CancellationToken);
 
         Assert.That(customer!.Name, Is.EqualTo(expected.Name));
@@ -24,9 +26,11 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetCustomer_ByEmail_ReturnsCustomer()
     {
+        //SETUP
         var expected = DemoCatalog.Customers[0];
         using var client = Factory.CreateClient();
 
+        //SUT
         var customer = await client.GetFromJsonAsync<CustomerDto>($"/api/customers?email={Uri.EscapeDataString(expected.Email)}", CancellationToken);
 
         Assert.That(customer!.VatNumber, Is.EqualTo(expected.VatNumber));
@@ -35,8 +39,10 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetCustomer_WithoutVatNumberAndEmail_ReturnsValidationError()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.GetAsync("/api/customers", CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -46,8 +52,10 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetCustomer_Unknown_ReturnsNotFound()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.GetAsync("/api/customers?vatNumber=IT99999999999", CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -57,9 +65,11 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateCustomer_New_ReturnsCreatedAndIsReadable()
     {
+        //SETUP
         var company = DemoCatalog.Companies.Single(c => c.CompanyId == "C-04");
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.PostAsJsonAsync(
             "/api/customers",
             new CreateCustomerRequest(company.Name, company.VatNumber, company.Email, company.Address),
@@ -75,9 +85,11 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateCustomer_ExistingVatNumber_ReturnsConflict()
     {
+        //SETUP
         var existing = DemoCatalog.Customers[0];
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.PostAsJsonAsync(
             "/api/customers",
             new CreateCustomerRequest("Altro nome", existing.VatNumber, "altro@example.com", "Via Roma 1"),
@@ -90,8 +102,10 @@ public class CustomerEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateCustomer_MissingEmail_ReturnsValidationError()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.PostAsJsonAsync(
             "/api/customers",
             new CreateCustomerRequest("Nuovo cliente", "IT55555555555", "", "Via Roma 1"),

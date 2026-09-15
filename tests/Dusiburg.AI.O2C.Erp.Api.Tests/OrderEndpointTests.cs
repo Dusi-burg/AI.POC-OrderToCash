@@ -15,10 +15,12 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_AllLinesAvailable_CreatesConfirmedOrderAndReservesStock()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, Deal1001);
         var reservedBefore = await ReservedAsync("IND-BRG-001");
 
+        //SUT
         using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
         var created = await response.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
         var order = await client.GetFromJsonAsync<OrderDto>($"/api/orders/{created!.OrderId}", CancellationToken);
@@ -36,9 +38,11 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_LineNotAvailable_CreatesBackorder()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, DemoCatalog.Deals.Single(d => d.DealId == "D-1003"));
 
+        //SUT
         using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
         var created = await response.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
 
@@ -49,10 +53,12 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_SameKeyTwice_ReturnsSameOrderAndReservesOnce()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, Deal1001);
         var reservedBefore = await ReservedAsync("IND-BRG-001");
 
+        //SUT
         using var first = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
         using var second = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
         var firstOrder = await first.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
@@ -68,9 +74,11 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_ParallelRequestsWithSameKey_CreateSingleOrder()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, Deal1001);
 
+        //SUT
         var responses = await Task.WhenAll(Enumerable.Range(0, 8)
             .Select(_ => client.PostAsJsonAsync("/api/orders", request, CancellationToken)));
 
@@ -95,9 +103,11 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_UnknownSku_ReturnsNotFoundWithoutCreatingOrder()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, DemoCatalog.Deals.Single(d => d.DealId == "D-1007"));
 
+        //SUT
         using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -108,9 +118,11 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task CreateOrder_UnknownCustomer_ReturnsNotFound()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, Deal1001) with { CustomerId = 999_999 };
 
+        //SUT
         using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -125,6 +137,7 @@ public class OrderEndpointTests : ErpApiTestBase
     [TestCase("missing-external-ref")]
     public async Task CreateOrder_InvalidRequest_ReturnsValidationError(string invalid)
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var valid = new CreateOrderRequest(1, [new OrderLineInput("IND-BRG-001", 1, 12.00m)], "D-1001", "o2c-D-1001-r1");
         var request = invalid switch
@@ -138,6 +151,7 @@ public class OrderEndpointTests : ErpApiTestBase
             _ => throw new ArgumentOutOfRangeException(nameof(invalid))
         };
 
+        //SUT
         using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
@@ -147,8 +161,10 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetOrder_Unknown_ReturnsNotFound()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.GetAsync($"/api/orders/{Guid.NewGuid()}", CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
@@ -158,10 +174,12 @@ public class OrderEndpointTests : ErpApiTestBase
     [Test]
     public async Task DevReset_AfterOrder_RemovesOrdersAndRestoresStock()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         var request = await OrderForDealAsync(client, Deal1001);
         using var order = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
 
+        //SUT
         using var reset = await client.PostAsync("/dev/reset", content: null, CancellationToken);
 
         Assert.That(order.StatusCode, Is.EqualTo(HttpStatusCode.Created));

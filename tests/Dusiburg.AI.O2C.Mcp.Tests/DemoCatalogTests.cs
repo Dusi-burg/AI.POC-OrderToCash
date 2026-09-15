@@ -20,6 +20,7 @@ public class DemoCatalogTests
     public void Deal_MatchesScenario(
         string dealId, bool newCustomer, bool blockedCustomer, string currency, bool aboveThreshold, int unavailableLines, int unknownSkus)
     {
+        //SUT
         var deal = DemoCatalog.Deals.Single(d => d.DealId == dealId);
         var company = DemoCatalog.Companies.Single(c => c.CompanyId == deal.CompanyId);
         var customer = DemoCatalog.Customers.SingleOrDefault(c => c.VatNumber == company.VatNumber);
@@ -35,6 +36,7 @@ public class DemoCatalogTests
     [Test]
     public void Deals_RunInSequence_DoNotConsumeEachOtherStock()
     {
+        //SUT
         // Gli ordini che la demo può creare (EUR, SKU tutti noti) non devono far cambiare esito ai deal successivi.
         var orderable = DemoCatalog.Deals.Where(d => d.Currency == "EUR" && d.Lines.All(l => Products.ContainsKey(l.Sku)));
 
@@ -51,6 +53,7 @@ public class DemoCatalogTests
     [Test]
     public void Catalog_HasExpectedShape()
     {
+        //SUT
         Assert.That(DemoCatalog.Products, Has.Count.GreaterThanOrEqualTo(20));
         Assert.That(DemoCatalog.Customers, Has.Count.EqualTo(10));
         Assert.That(DemoCatalog.Customers.Count(c => c.IsBlocked), Is.EqualTo(1));

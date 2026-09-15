@@ -17,11 +17,15 @@
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="NUnit.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Shared\Dusiburg.AI.O2C.Shared.csproj" />
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Crm.Mcp\Dusiburg.AI.O2C.Crm.Mcp.csproj" />
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Mcp\Dusiburg.AI.O2C.Erp.Mcp.csproj" />
+    <!-- Erp.Api reale dietro Erp.Mcp (D36); l'alias distingue il suo Program da quelli dei server MCP -->
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Api\Dusiburg.AI.O2C.Erp.Api.csproj" Aliases="ErpApi" />
     <!-- Creazione dei database di test dal modello (D30) -->
     <ProjectReference Include="..\..\tools\Dusiburg.AI.O2C.DbInit\Dusiburg.AI.O2C.DbInit.csproj" />
   </ItemGroup>

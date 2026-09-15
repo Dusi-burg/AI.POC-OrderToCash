@@ -50,8 +50,10 @@ public class MockCrmClientTests
     [Test]
     public async Task GetDeal_Existing_ReturnsLinesRevisionAndStage()
     {
+        //SETUP
         var expected = DemoCatalog.Deals.Single(d => d.DealId == "D-1001");
 
+        //SUT
         var deal = await _client.GetDealAsync(expected.DealId, CancellationToken);
 
         Assert.That(deal, Is.Not.Null);
@@ -65,14 +67,17 @@ public class MockCrmClientTests
     [Test]
     public async Task GetDeal_Unknown_ReturnsNull()
     {
+        //SUT
         Assert.That(await _client.GetDealAsync("D-9999", CancellationToken), Is.Null);
     }
 
     [Test]
     public async Task GetCompany_Existing_ReturnsCompany()
     {
+        //SETUP
         var expected = DemoCatalog.Companies.Single(c => c.CompanyId == "C-04");
 
+        //SUT
         var company = await _client.GetCompanyAsync(expected.CompanyId, CancellationToken);
 
         Assert.That(company, Is.EqualTo(new CompanyDto(expected.CompanyId, expected.Name, expected.VatNumber, expected.Email, expected.Address)));
@@ -81,6 +86,7 @@ public class MockCrmClientTests
     [Test]
     public async Task UpdateDeal_KeepsRevisionAndWritesNote()
     {
+        //SUT
         var response = await _client.UpdateDealAsync(
             new UpdateDealRequest("D-1002", null, DealStatus.ApprovalPending, "In attesa di approvazione: sopra soglia"),
             CancellationToken);
@@ -98,6 +104,7 @@ public class MockCrmClientTests
     [Test]
     public async Task UpdateDeal_TwiceWithOrderNumber_AppendsNotesAndKeepsOrderNumber()
     {
+        //SUT
         await _client.UpdateDealAsync(new UpdateDealRequest("D-1002", null, DealStatus.ApprovalPending, "Sopra soglia"), CancellationToken);
         await _client.UpdateDealAsync(new UpdateDealRequest("D-1002", "SO-2026-000001", DealStatus.OrderCreated, "Ordine creato"), CancellationToken);
 
@@ -113,6 +120,7 @@ public class MockCrmClientTests
     [Test]
     public async Task UpdateDeal_Unknown_ReturnsNull()
     {
+        //SUT
         var response = await _client.UpdateDealAsync(new UpdateDealRequest("D-9999", null, DealStatus.Failed, null), CancellationToken);
 
         Assert.That(response, Is.Null);
@@ -121,16 +129,20 @@ public class MockCrmClientTests
     [Test]
     public void UpdateDeal_NoteTooLong_Throws()
     {
+        //SETUP
         var request = new UpdateDealRequest("D-1001", null, DealStatus.Failed, new string('x', MockCrmClient.NoteMaxLength + 1));
 
+        //SUT
         Assert.That(() => _client.UpdateDealAsync(request, CancellationToken), Throws.InstanceOf<ArgumentException>());
     }
 
     [Test]
     public async Task Reset_AfterUpdate_RestoresDemoData()
     {
+        //SETUP
         await _client.UpdateDealAsync(new UpdateDealRequest("D-1001", "SO-2026-000001", DealStatus.OrderCreated, "Ordine creato"), CancellationToken);
 
+        //SUT
         await CrmSeeder.ResetAsync(_db, DateTimeOffset.UtcNow, CancellationToken);
 
         await using var check = CreateContext();

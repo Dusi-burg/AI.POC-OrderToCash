@@ -8,10 +8,12 @@ public class RootEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetRoot_WithCorrelationId_ReturnsOkAndEchoesIt()
     {
+        //SETUP
         using var client = Factory.CreateClient();
         using var request = new HttpRequestMessage(HttpMethod.Get, "/");
         request.Headers.Add(CorrelationId.HeaderName, "test-corr-1");
 
+        //SUT
         using var response = await client.SendAsync(request, CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));
@@ -21,8 +23,10 @@ public class RootEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetRoot_WithoutCorrelationId_ReturnsGeneratedId()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.GetAsync("/", CancellationToken);
         var values = response.Headers.GetValues(CorrelationId.HeaderName).ToList();
 
@@ -34,8 +38,10 @@ public class RootEndpointTests : ErpApiTestBase
     [Test]
     public async Task GetHealth_WithDatabase_ReturnsOk()
     {
+        //SETUP
         using var client = Factory.CreateClient();
 
+        //SUT
         using var response = await client.GetAsync("/health", CancellationToken);
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.OK));

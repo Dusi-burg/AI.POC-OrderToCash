@@ -5,7 +5,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 - Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
 - Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
 
-> **Stato**: Fase 1 — sistemi di base. L'ERP mock (`Erp.Api`: clienti, giacenze, ordini idempotenti) e il CRM mock (`Crm.Mcp`: deal e aziende, endpoint dev) funzionano via HTTP sui dati demo di [docs/demo.md](docs/demo.md); nessun agente ancora. Correlazione, telemetria e gestione dei segreti sono cablate dalla Fase 0.
+> **Stato**: Fase 2 — server MCP. `Erp.Mcp` e `Crm.Mcp` espongono i tool di §6 su `/mcp` (HTTP stateless, API key, errori strutturati, uno span per tool) sopra l'ERP mock (`Erp.Api`) e il CRM mock della Fase 1, con i dati demo di [docs/demo.md](docs/demo.md); nessun agente ancora. Correlazione, telemetria e gestione dei segreti sono cablate dalla Fase 0.
 
 ## Struttura
 
@@ -18,6 +18,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 | `src/Dusiburg.AI.O2C.Erp.Mcp` | Server MCP sopra `Erp.Api` |
 | `src/Dusiburg.AI.O2C.Crm.Mcp` | Server MCP con il CRM mock |
 | `src/Dusiburg.AI.O2C.Crm.Data` | Modello EF Core del CRM mock (schema `crm`) |
+| `src/Dusiburg.AI.O2C.Mcp.Hosting` | Infrastruttura comune dei server MCP: API key, filtro sulle chiamate ai tool, errori strutturati |
 | `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agenti, handoff, policy di approvazione |
 | `src/Dusiburg.AI.O2C.Approvals.Web` | UI delle approvazioni |
 | `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
@@ -87,6 +88,20 @@ $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusibur
 
 Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in Development).
 
+## Server MCP
+
+| Server | Endpoint | Tool | API key (user-secrets dell'AppHost) |
+|--------|----------|------|-------------------------------------|
+| `erp-mcp` | http://localhost:5102/mcp | `get_customer`, `create_customer`, `check_stock`, `create_order`, `get_order` | `Parameters:erp-mcp-api-key` |
+| `crm-mcp` | http://localhost:5103/mcp | `get_deal`, `get_company`, `update_deal` | `Parameters:crm-mcp-api-key` |
+
+- Trasporto MCP Streamable HTTP **stateless** (SDK `ModelContextProtocol.AspNetCore` 2.2.0, protocollo `2026-07-28`).
+- Header obbligatorio `X-Api-Key`: se manca o è errato la risposta è 401 (ProblemDetails con `code = UNAUTHORIZED`). Senza chiave configurata il server non si avvia.
+- Header facoltativo `x-correlation-id`: propagato a `Erp.Api`, sui log e sullo span `mcp.tool {tool.name}` di ogni chiamata (attributi `tool.name`, `correlation.id`, `tool.outcome`).
+- Risultati positivi in `structuredContent`, con lo schema pubblicato in `tools/list`. Errori come risultato `isError = true` con `{ "error": { "code", "message" } }` nel testo. `get_customer` restituisce `{ "customer": null }` se il cliente non esiste.
+- `create_order` è annotato `destructive` e ha `_meta` `o2c.sensitive = true`: la policy di approvazione arriva con la Fase 5.
+- Verifica manuale facoltativa con MCP Inspector (richiede Node): `npx @modelcontextprotocol/inspector`, trasporto Streamable HTTP, URL del server e header `X-Api-Key`.
+
 ## Demo
 
 Scenari, dati demo e reset sono descritti in [docs/demo.md](docs/demo.md). Richieste pronte:
@@ -109,6 +124,6 @@ Code coverage: in Visual Studio da **Test → Analizza code coverage per tutti i
 
 - **Correlazione**: header `x-correlation-id` su ogni chiamata HTTP/MCP, letto o generato (GUID v7) dal middleware `UseCorrelationId()`, propagato in uscita da `CorrelationIdDelegatingHandler`, esposto come attributo `correlation.id` su span e scope di log.
 - **Idempotenza**: `IdempotencyKey.From(dealId, revision)` → `o2c-D-1001-r3`, calcolata dal codice e mai dal modello.
-- **Errori dei tool**: sempre `{ "error": { "code", "message" } }`, codici in `ToolErrorCodes`.
+- **Errori dei tool**: sempre `{ "error": { "code", "message" } }`, codici in `ToolErrorCodes`; sui server MCP come risultato `isError = true` con l'envelope nel testo, prodotto dal filtro comune di `Mcp.Hosting` (nessuna eccezione arriva al client).
 - **Telemetria**: sorgenti `Dusiburg.AI.O2C.*`, attributi `agent.name`, `tool.name`, `correlation.id`, `tool.outcome`.
 - **Segreti**: solo user-secrets in locale.

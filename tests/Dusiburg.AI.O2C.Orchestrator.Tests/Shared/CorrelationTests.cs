@@ -7,6 +7,7 @@ public class CorrelationTests
     [Test]
     public void New_ReturnsValidVersion7Guid()
     {
+        //SUT
         var id = CorrelationId.New();
 
         Assert.That(CorrelationId.IsValid(id), Is.True);
@@ -16,6 +17,7 @@ public class CorrelationTests
     [Test]
     public void New_ReturnsDistinctIds()
     {
+        //SUT
         var first = CorrelationId.New();
         var second = CorrelationId.New();
 
@@ -29,20 +31,24 @@ public class CorrelationTests
     [TestCase("<script>")]
     public void IsValid_RejectsUnsafeValues(string? value)
     {
+        //SUT
         Assert.That(CorrelationId.IsValid(value), Is.False);
     }
 
     [Test]
     public void IsValid_RejectsTooLongValue()
     {
+        //SUT
         Assert.That(CorrelationId.IsValid(new string('a', CorrelationId.MaxLength + 1)), Is.False);
     }
 
     [Test]
     public void Begin_SetsCurrentAndRestoresPreviousOnDispose()
     {
+        //SETUP
         var context = new AsyncLocalCorrelationContext();
 
+        //SUT
         using (context.Begin("outer"))
         {
             using (context.Begin("inner"))
@@ -59,8 +65,10 @@ public class CorrelationTests
     [Test]
     public void Begin_InvalidId_Throws()
     {
+        //SETUP
         var context = new AsyncLocalCorrelationContext();
 
+        //SUT
         Assert.That(() => context.Begin("not valid"), Throws.TypeOf<ArgumentException>());
     }
 }
