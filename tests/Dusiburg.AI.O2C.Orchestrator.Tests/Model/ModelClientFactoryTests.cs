@@ -1,4 +1,5 @@
 using Dusiburg.AI.O2C.Orchestrator.Model;
+using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Logging.Abstractions;
 using OllamaSharp.Models;
@@ -46,6 +47,27 @@ public class ModelClientFactoryTests
         Assert.That(model.DefaultOptions.Temperature, Is.EqualTo(0.1f));
         Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.Think.Name], Is.EqualTo(false));
         Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.NumCtx.Name], Is.EqualTo(ModelOptions.DefaultOllamaContextLength));
+    }
+
+    [TestCase("claude-haiku-4-5", AnthropicThinkingMode.Extended)]
+    [TestCase("claude-sonnet-5", AnthropicThinkingMode.Adaptive)]
+    [TestCase("claude-opus-5", AnthropicThinkingMode.Adaptive)]
+    public void ThinkingModeFor_Model_MatchesSupportedMode(string model, AnthropicThinkingMode expected)
+    {
+        //SUT
+        Assert.That(ModelClientFactory.ThinkingModeFor(model), Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void Create_AnthropicHaiku_OnlyFromConfiguration()
+    {
+        //SETUP
+        var factory = Factory(new() { ["ANTHROPIC_API_KEY"] = "test-key", ["ANTHROPIC_MODEL"] = "claude-haiku-4-5" });
+
+        //SUT
+        using var model = factory.Create();
+
+        Assert.That((model.Provider, model.ModelId), Is.EqualTo((ModelProviders.Anthropic, "claude-haiku-4-5")));
     }
 
     [TestCase("openai")]

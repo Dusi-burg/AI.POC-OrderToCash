@@ -43,9 +43,19 @@ public sealed class ModelClientFactory(IConfiguration configuration, ILoggerFact
         return new ModelClient(chatClient, options.Provider, modelId, defaults);
     }
 
+    /// <summary>
+    /// Haiku 4.5 non supporta l'adaptive thinking dei modelli 4.6+: con la modalità Extended e senza <c>ChatOptions.Reasoning</c>
+    /// il client non invia alcuna configurazione di thinking.
+    /// </summary>
+    internal static AnthropicThinkingMode ThinkingModeFor(string model) =>
+        model.StartsWith("claude-haiku-4-5", StringComparison.OrdinalIgnoreCase)
+            ? AnthropicThinkingMode.Extended
+            : AnthropicThinkingMode.Adaptive;
+
     private static (IChatClient Client, string ModelId, ChatOptions Defaults) CreateAnthropic(ModelOptions options)
     {
-        var client = new AnthropicClient { ApiKey = options.AnthropicApiKey }.AsIChatClient(options.AnthropicModel, MaxOutputTokens);
+        var client = new AnthropicClient { ApiKey = options.AnthropicApiKey }
+            .AsIChatClient(options.AnthropicModel, MaxOutputTokens, ThinkingModeFor(options.AnthropicModel));
 
         // Claude Sonnet 5 rifiuta temperature e top_p (HTTP 400): il determinismo viene da istruzioni, guardia e fatti dei tool.
         return (client, options.AnthropicModel, new ChatOptions());
