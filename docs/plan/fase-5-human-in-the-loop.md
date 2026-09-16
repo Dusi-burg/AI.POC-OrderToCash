@@ -87,14 +87,14 @@ Fase 4 completata (workflow multi-agente, `WorkflowState`, consumer RabbitMQ).
 
 ## Criteri di accettazione
 
-- [ ] D-1002 (sopra soglia) → richiesta `Pending` visibile in `/approvals`, **nessun** ordine in ERP, deal `ApprovalPending`.
-- [ ] Approvazione → ordine creato **una sola volta**, deal `OrderCreated`.
-- [ ] Rifiuto → nessun ordine, deal `Rejected` con nota.
-- [ ] Orchestrator fermato durante l'attesa e riavviato → l'approvazione successiva completa il workflow.
-- [ ] Scadenza (timeout di demo) → `Expired`, nessun ordine, deal `Expired`.
-- [ ] D-1003, D-1004, D-1005, D-1008 generano approvazioni con i motivi corretti; D-1001 passa senza approvazione.
-- [ ] Nel dashboard la catena trigger → agenti → tool → richiesta → decisione → ripresa → `create_order` sta in **un'unica traccia**.
-- [ ] DoD comune soddisfatta.
+- [x] D-1002 (sopra soglia) → richiesta `Pending` visibile in `/approvals`, **nessun** ordine in ERP, deal `ApprovalPending`.
+- [x] Approvazione → ordine creato **una sola volta**, deal `OrderCreated`.
+- [x] Rifiuto → nessun ordine, deal `Rejected` con nota.
+- [x] Orchestrator fermato durante l'attesa e riavviato → l'approvazione successiva completa il workflow.
+- [x] Scadenza (timeout di demo) → `Expired`, nessun ordine, deal `Expired`.
+- [x] D-1003, D-1004, D-1005, D-1008 generano approvazioni con i motivi corretti; D-1001 passa senza approvazione.
+- [~] Nel dashboard la catena trigger → agenti → tool → richiesta → decisione → ripresa → `create_order` sta in **un'unica traccia**. *Verificato indirettamente*: gli span `approval.*` sono emessi e `TraceParent` è valorizzato su tutte le richieste, quindi la ripresa si riattacca al contesto salvato; l'ispezione visiva della traccia completa nel dashboard non è stata fatta in questa sessione (in Fase 4 lo era, sulla catena fino a `create_order`).
+- [x] DoD comune soddisfatta.
 
 ## Rischi
 
@@ -111,4 +111,48 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 
 ## Esito
 
-_Da compilare a fine fase (incluso l'esito dello spike S5 e la scelta A/B)._
+**Completata il 2026-09-16** — branch `develop`. Gate F5 chiuso con le proposte G5.2–G5.7 accettate; accettazione sul modello locale (D53).
+
+### Spike S5 → meccanismo (A), checkpoint nativo
+
+Provato su un progetto scratch, con modello a copione:
+
+| Verifica | Esito |
+|----------|-------|
+| `ApprovalRequiredAIFunction` su `create_order` dentro un workflow di handoff | Il framework espone un `RequestPort` (`OrderAgent_..._UserInput`) con richiesta `ToolApprovalRequestContent` e risposta `ToolApprovalResponseContent`; il run si ferma in `PendingRequests` **senza invocare il tool** |
+| Checkpoint | Uno per superstep, persistibili con `CheckpointManager.CreateJson(ICheckpointStore<JsonElement>)`; `GetLatestCheckpointAsync(sessionId)` restituisce l'ultimo |
+| Ripresa in un **processo nuovo** | `ResumeStreamingAsync` ricostruisce lo stato, **riemette la richiesta pendente**, e la risposta di approvazione esegue `create_order` una sola volta |
+| Rifiuto | Nessuna esecuzione del tool |
+
+**Scelta: (A) checkpoint nativo** (D16 → D48). `ToolApprovalAgent` esiste nella GA ma copre le regole "non chiedere più" e la coda di richieste multiple, entrambe fuori scope: non usato. Chiude M8.
+
+### Verifiche
+| Criterio | Evidenza |
+|----------|----------|
+| Build e test | `dotnet build Dusiburg.AI.O2C.slnx` → 0 avvisi, 0 errori; `dotnet test` → **200/200** (169 in Fase 4): +25 in `Orchestrator.Tests`, +6 su `Approvals.Web`, +3 in `Erp.Api.Tests` |
+| Database | `DbInit` crea `orch.ApprovalRequest`, le lookup `ApprovalStatus` e `ApprovalReason`, `orch.WorkflowCheckpoint` e la lookup `WorkflowPhase` con **9 fasi** (+ `AwaitingApproval`, `Resuming`) |
+| Giro completo, otto deal (qwen3.5:9b) | D-1001 `OrderCreated` senza approvazione; D-1002 `OverThreshold`, D-1003 `InsufficientStock`, D-1004 `NewCustomer`, D-1005 `BlockedCustomer` (rifiutato), D-1008 `OverThreshold`+`NewCustomer`; D-1006 `Discarded`, D-1007 `Failed`. Cinque ordini, uno per deal approvato, ciascuno con la propria `IdempotencyKey`; **nessun ordine** per rifiuto, scarto e fallimento |
+| Sospensione | Deal `ApprovalPending` con i motivi nella nota, **nessun ordine in ERP**, richiesta visibile in `/approvals` con payload leggibile; `CheckpointId` e `TraceParent` valorizzati su tutte e cinque le richieste |
+| Approvazione | Ordine creato una sola volta, deal `OrderCreated`; 35 checkpoint su 8 sessioni, payload massimo ~56 KB |
+| Rifiuto | D-1005 `Rejected` con la nota del decisore, nessun ordine |
+| Scadenza (Prova A) | AppHost con `--APPROVAL_TIMEOUT_HOURS 0.02 --APPROVAL_SWEEP_MINUTES 0.2`: D-1002 non deciso → richiesta `Expired`, nessun ordine, deal `Expired` |
+| Riavvio in attesa (Prova B) | Orchestratore fermato con la richiesta pendente, approvazione dalla UI, orchestratore riavviato → ripresa dal checkpoint, un solo ordine `SO-2026-000001` in `Backorder`, deal `OrderCreated`, workflow `Completed`, note sul deal **singole** |
+| Doppia decisione | `POST /api/approvals/{id}/decision` due volte → `409`, la prima decisione resta valida, nessun secondo messaggio pubblicato (test di `Approvals.Web`) |
+
+### Cosa è stato fatto
+- `Shared`: contratti in `Contracts/Approvals/` (`ApprovalReason`, `ApprovalStatus`, `ApprovalPayload`, `ApprovalLine`, `ApprovalDecisionRequest/Response`, `ApprovalSummary`), messaggio `ApprovalDecided` e `ApprovalEventsTopology`, attributi di telemetria `approval.*`.
+- `Orchestration.Data`: `ApprovalRequest` (PK numerica + `PublicId`, `ReasonsJson`, `TraceParent`, `CheckpointId`, `RowVersion`), `WorkflowCheckpoint`, lookup dei due enum, fasi `AwaitingApproval` e `Resuming`, `ApprovalRepository` condiviso con `Approvals.Web`.
+- Orchestrator: `ApprovalPolicy` (regole di §7, unica fonte), `ApprovalGate` (policy sulla richiesta esposta, verifica di giacenza fatta dall'host), `ApprovalStore`, `SqlCheckpointStore`, `DealWorkflowEngine` condiviso fra avvio e ripresa, `ApprovalResumeRunner` con possesso atomico, `ApprovalSweepService` (riconciliazione + scadenza), `ApprovalDecidedConsumer`.
+- `Approvals.Web`: `/approvals`, `/approvals/{id}`, callback unico, publisher dietro `IApprovalDecisionPublisher`.
+- `Erp.Api`: `create_order` restituisce `backorderNote`, conservata in `erp.Order.BackorderNote`.
+- AppHost: inoltro delle manopole della demo (D52). `docs/demo.md`: script passo-passo degli otto scenari.
+
+### Scostamenti e note
+- **Lo stream di un run con richieste pendenti non si chiude**: resta aperto in attesa della risposta. L'host smette di consumarlo al `SuperStepCompletedEvent` che segue la richiesta (superstep committato, checkpoint presente) e solo allora esegue le proprie scritture.
+- **Gli effetti collaterali dell'host stanno fuori dal run**: con il run ancora aperto, l'invocazione di un altro tool può non completarsi. Il run si chiude prima di scrivere su CRM e database.
+- **Tutte le chiamate del turno passano dalla porta di approvazione**: `FunctionInvokingChatClient` è tutto-o-niente, quindi nel turno in cui compare `create_order` anche i tool non sensibili arrivano come richieste. Le approva l'host senza coinvolgere nessuno.
+- **Due difetti trovati dal vivo, non dai test** (D54, D56): un agente che salta `check_stock` scavalcava l'approvazione — ora la verifica la fa l'host; e due riprese simultanee duplicavano le note sul CRM — ora l'uscita da `AwaitingApproval` è un UPDATE condizionale. In entrambi i casi l'ordine era rimasto unico grazie all'indice univoco su `IdempotencyKey`, che ha fatto da ultima difesa.
+- **`Reserved` può superare `OnHand`** (D55): scelta consapevole, documentata, con `backorderNote` a rendere leggibile lo stato.
+- **Doppio finto dei tool**: restituisce `JsonElement`, come i tool MCP veri. Con risultati oggetto, il marshaller a reflection di `AIFunctionFactory` serializza su una pipe che, dopo un run sospeso, non si svuotava dentro il runner di NUnit.
+- **Checkpoint non potati**: nel POC si accumulano; in produzione servirebbe una ritenzione.
+- **Non rifatto il giro su Haiku 4.5** (D53): il modello locale ha portato a termine tutti gli scenari.

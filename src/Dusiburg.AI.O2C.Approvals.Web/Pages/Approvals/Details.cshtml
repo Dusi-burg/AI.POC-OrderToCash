@@ -1,0 +1,141 @@
+@page "/approvals/{id:guid}"
+@using Dusiburg.AI.O2C.Shared.Contracts.Approvals
+@model Dusiburg.AI.O2C.Approvals.Web.Pages.Approvals.DetailsModel
+@{
+    ViewData["Title"] = "Richiesta di approvazione";
+    var request = Model.Approval!;
+    var payload = request.Payload;
+    var pending = request.Summary.Status == ApprovalStatus.Pending;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Deal @request.Summary.DealId <small class="text-muted">rev. @request.DealRevision</small></h1>
+    <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index">Torna alla coda</a>
+</div>
+
+@if (Model.Message is { Length: > 0 } message)
+{
+    <div class="alert alert-info">@message</div>
+}
+
+<div class="row g-4">
+    <div class="col-md-7">
+        <h2 class="h5">Proposta di ordine</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th class="text-end">Quantità</th>
+                    <th class="text-end">Prezzo</th>
+                    <th class="text-end">Totale riga</th>
+                    <th>Giacenza</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in payload.Lines)
+                {
+                    <tr>
+                        <td><code>@line.Sku</code></td>
+                        <td class="text-end">@line.Quantity</td>
+                        <td class="text-end">@line.UnitPrice.ToString("N2") €</td>
+                        <td class="text-end">@line.LineTotal.ToString("N2") €</td>
+                        <td>
+                            @if (line.Available == false)
+                            {
+                                <span class="badge text-bg-warning">backorder (@line.OnHand pz, @line.LeadTimeDays gg)</span>
+                            }
+                            else if (line.Available == true)
+                            {
+                                <span class="badge text-bg-success">disponibile</span>
+                            }
+                            else
+                            {
+                                <span class="text-muted">non verificata</span>
+                            }
+                        </td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="3" class="text-end">Totale</td>
+                    <td class="text-end">@payload.Total.ToString("N2") €</td>
+                    <td></td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="col-md-5">
+        <h2 class="h5">Contesto</h2>
+        <dl class="row mb-4">
+            <dt class="col-5">Azienda CRM</dt>
+            <dd class="col-7">@payload.CompanyName <code>@payload.CompanyId</code></dd>
+
+            <dt class="col-5">Cliente ERP</dt>
+            <dd class="col-7">
+                @payload.CustomerName (id @payload.CustomerId)
+                @if (payload.CustomerCreatedInThisRun)
+                {
+                    <span class="badge text-bg-info">creato ora</span>
+                }
+                @if (payload.CustomerIsBlocked)
+                {
+                    <span class="badge text-bg-danger">bloccato</span>
+                }
+            </dd>
+
+            <dt class="col-5">Motivi</dt>
+            <dd class="col-7">
+                @foreach (var reason in request.Summary.Reasons)
+                {
+                    <span class="badge text-bg-warning me-1">@reason</span>
+                }
+            </dd>
+
+            <dt class="col-5">Stato</dt>
+            <dd class="col-7">@request.Summary.Status</dd>
+
+            <dt class="col-5">Richiesta</dt>
+            <dd class="col-7">@request.Summary.RequestedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")</dd>
+
+            @if (request.Summary.DecidedAt is { } decidedAt)
+            {
+                <dt class="col-5">Decisa</dt>
+                <dd class="col-7">@decidedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss") da @request.Summary.DecidedBy</dd>
+
+                <dt class="col-5">Nota</dt>
+                <dd class="col-7">@(request.Summary.DecisionNote ?? "—")</dd>
+            }
+
+            <dt class="col-5">Correlation id</dt>
+            <dd class="col-7"><code>@request.Summary.CorrelationId</code></dd>
+
+            <dt class="col-5">Chiave di idempotenza</dt>
+            <dd class="col-7"><code>@payload.IdempotencyKey</code></dd>
+
+            @if (Model.DealLink is { Length: > 0 } dealLink)
+            {
+                <dt class="col-5">Deal nel CRM</dt>
+                <dd class="col-7"><a href="@dealLink" target="_blank" rel="noopener">@request.Summary.DealId</a></dd>
+            }
+        </dl>
+
+        @if (pending)
+        {
+            <form method="post">
+                <div class="mb-3">
+                    <label class="form-label" for="Note">Nota (facoltativa)</label>
+                    <textarea class="form-control" id="Note" name="Note" rows="3" maxlength="1000">@Model.Note</textarea>
+                </div>
+                <button class="btn btn-success" type="submit" asp-page-handler="Approve">Approva</button>
+                <button class="btn btn-danger" type="submit" asp-page-handler="Reject">Rifiuta</button>
+                <p class="form-text mt-2">La decisione verrà registrata come <code>@Model.Approver</code>.</p>
+            </form>
+        }
+        else
+        {
+            <p class="text-muted">La richiesta è già stata decisa: non sono possibili altre azioni.</p>
+        }
+    </div>
+</div>

@@ -17,6 +17,8 @@
     <PackageReference Include="NUnit3TestAdapter" />
     <PackageReference Include="NUnit.Analyzers" PrivateAssets="all" />
     <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <!-- UI e callback delle approvazioni in-process (5.9) -->
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
   </ItemGroup>
 
   <ItemGroup>
@@ -24,6 +26,10 @@
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
     <!-- Agente, guardia e factory del modello (3.8): modello a copione e tool in memoria, nessuna chiamata reale -->
     <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Orchestrator\Dusiburg.AI.O2C.Orchestrator.csproj" />
+    <!-- Coda, dettaglio e callback delle approvazioni (5.9): decisione, nota e 409 sulla seconda decisione -->
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Approvals.Web\Dusiburg.AI.O2C.Approvals.Web.csproj" />
+    <!-- Creazione del database di test dal modello, senza migration (D30) -->
+    <ProjectReference Include="..\..\tools\Dusiburg.AI.O2C.DbInit\Dusiburg.AI.O2C.DbInit.csproj" />
   </ItemGroup>
 
 </Project>

@@ -12,6 +12,9 @@ internal sealed class RecordingWorkflowStateStore : IWorkflowStateStore
 
     public List<(WorkflowPhase Phase, string StateJson)> Updates { get; } = [];
 
+    /// <summary>Ultima fase e ultimi fatti per correlation id: è ciò che la ripresa legge dal database.</summary>
+    public Dictionary<string, (WorkflowPhase Phase, string StateJson)> Current { get; } = [];
+
     public Task<bool> TryStartAsync(string correlationId, string dealId, int dealRevision, bool reprocess, CancellationToken cancellationToken)
     {
         StartCalls++;
@@ -24,6 +27,7 @@ internal sealed class RecordingWorkflowStateStore : IWorkflowStateStore
         lock (Updates)
         {
             Updates.Add((phase, stateJson));
+            Current[correlationId] = (phase, stateJson);
         }
 
         return Task.CompletedTask;

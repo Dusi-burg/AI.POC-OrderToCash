@@ -9,6 +9,10 @@ dotnet run --project tools/Dusiburg.AI.O2C.DbInit     # ricrea O2C su (localdb)\
 dotnet run --project src/Dusiburg.AI.O2C.AppHost        # avvia i servizi (vedi README)
 ```
 
+> ⚠️ Dopo ogni modifica al modello dati va rieseguito `DbInit`: il database si crea da zero dal modello, senza migration (D30). Le tabelle della Fase 5 (`orch.ApprovalRequest`, `orch.ApprovalStatus`, `orch.ApprovalReason`, `orch.WorkflowCheckpoint`) arrivano da lì.
+
+Il broker non va avviato a mano: la risorsa `rabbitmq-wsl` dell'AppHost fa `docker start --attach rabbitmq` dentro WSL e lo tiene vivo finché l'AppHost gira (D26).
+
 Per ripetere la demo senza ricreare il database (solo in Development):
 
 | Servizio | Endpoint | Effetto |
@@ -16,7 +20,30 @@ Per ripetere la demo senza ricreare il database (solo in Development):
 | Erp.Api | `POST http://localhost:5101/dev/reset` | Cancella gli ordini e ripristina clienti, prodotti e giacenze del seed; la numerazione degli ordini riparte da `SO-yyyy-000001` |
 | Crm.Mcp | `POST http://localhost:5103/dev/reset` | Ripristina aziende e deal del seed: stage `ContractSent`, revisione 1, nessuno stato O2C né note |
 
+> I due reset **non** toccano lo schema `orch`: `WorkflowState`, `ApprovalRequest` e `WorkflowCheckpoint` restano. Senza pulirli, un nuovo `close-won` sulla stessa revisione viene riconosciuto come duplicato e non riparte alcun workflow. Per ripartire davvero da zero conviene rieseguire `DbInit`; in alternativa, cancellare le righe delle tre tabelle.
+
 Le richieste pronte sono in `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` e `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http`.
+
+### Manopole della demo
+
+Si impostano **sull'AppHost** (riga di comando, user-secrets o variabili d'ambiente) e vengono inoltrate al servizio che le legge:
+
+| Impostazione | Default | A cosa serve |
+|--------------|---------|--------------|
+| `MODEL_PROVIDER` | `anthropic` | `anthropic` (Claude via API) oppure `ollama` (modello locale, D41) |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Modello cloud; per i run di accettazione è stato usato `claude-haiku-4-5` (D43) |
+| `OLLAMA_MODEL` | `qwen3.5:9b` | Modello locale |
+| `O2C_AGENT_MODE` | `multi` | `multi` (tre agenti con handoff) oppure `single` (agente della Fase 3, D47) |
+| `APPROVAL_THRESHOLD_EUR` | `10000` | Soglia oltre la quale serve l'approvazione (confronto stretto) |
+| `APPROVAL_TIMEOUT_HOURS` | `24` | Scadenza di una richiesta pendente; accetta i decimali (`0.02` ≈ 72 secondi, G5.5) |
+| `APPROVAL_SWEEP_MINUTES` | `5` | Ogni quanto girano riconciliazione e scadenza (minimo 10 secondi) |
+| `Approvals__ApproverUpn` | `approver@dusiburg.local` | UPN registrato come decisore (D25) |
+
+Esempio, per fare la demo col modello locale e una scadenza da un minuto:
+
+```powershell
+dotnet run --project src/Dusiburg.AI.O2C.AppHost -- --MODEL_PROVIDER ollama --APPROVAL_TIMEOUT_HOURS 0.02 --APPROVAL_SWEEP_MINUTES 0.2
+```
 
 ## Scenari
 
@@ -67,3 +94,64 @@ Gli ordini creabili dalla demo non si rubano stock a vicenda: eseguendo tutti i 
 | IND-CAB-001 | Cavo schermato 4x1,5 mm2 (al metro) | 3,20 | 2500 | 0 | 4 |
 
 Sull'ordine vale il prezzo unitario del deal, non il listino (D21).
+
+## Script della demo
+
+Il trigger è sempre lo stesso: l'endpoint dev del CRM che simula il webhook `deal-closed-won` (porta il deal a `ClosedWon`, incrementa la revisione e pubblica l'evento). L'orchestratore consuma dalla coda e lavora da solo.
+
+```powershell
+$deal = "D-1001"
+Invoke-RestMethod -Method Post "http://localhost:5103/dev/deals/$deal/close-won"
+```
+
+Dopo ogni passo si guardano tre posti:
+
+| Dove | Cosa |
+|------|------|
+| Log dell'orchestratore nel dashboard | La riga finale `Deal … elaborato (multi) con …: <esito> <numero ordine>` |
+| `GET http://localhost:5103/dev/deals/{dealId}` | Stato O2C del deal e note scritte dagli agenti o dall'host |
+| `http://localhost:5104/approvals` | Coda delle approvazioni pendenti |
+
+### 1. D-1001 — percorso felice, nessuna approvazione
+
+`close-won` su D-1001 → in circa 20 s il deal è `OrderCreated` con il numero d'ordine nella nota, e in `/approvals` **non** compare nulla: la policy non ha chiesto niente e il workflow non si è mai fermato.
+
+### 2. D-1002 — approvazione per soglia, poi approva
+
+1. `close-won` su D-1002.
+2. Il deal diventa `ApprovalPending` con la nota `Approvazione richiesta: OverThreshold. Totale 10.832,00 EUR.` In ERP **non** c'è alcun ordine.
+3. `/approvals` mostra una riga pendente; aprendola si vedono righe, totale, giacenze, cliente e chiave di idempotenza.
+4. **Approva** con una nota → il workflow riprende dal checkpoint, crea l'ordine e porta il deal a `OrderCreated`.
+
+### 3. D-1003, D-1004, D-1005, D-1008 — gli altri motivi
+
+Stessa sequenza, con i motivi attesi:
+
+| Deal | Motivi attesi in `/approvals` |
+|------|-------------------------------|
+| D-1003 | `InsufficientStock` (IND-MOT-003: 5 richiesti, 3 disponibili). Dopo l'approvazione l'ordine nasce in **Backorder** e il deal riporta la nota `Da approvvigionare — IND-MOT-003: 2 PZ da ordinare` |
+| D-1004 | `NewCustomer` (l'anagrafica ERP viene creata prima della sospensione) |
+| D-1005 | `BlockedCustomer` |
+| D-1008 | `OverThreshold` **e** `NewCustomer` |
+
+### 4. Rifiuto
+
+Su una richiesta pendente premere **Rifiuta** con una nota: non viene creato alcun ordine e il deal passa a `Rejected` con la nota del decisore. La seconda decisione sulla stessa richiesta riceve `409`.
+
+### 5. Scadenza
+
+Avviare l'AppHost con `--APPROVAL_TIMEOUT_HOURS 0.02 --APPROVAL_SWEEP_MINUTES 0.2`, generare una richiesta e non decidere: entro un paio di minuti la richiesta passa a `Expired`, non nasce alcun ordine e il deal diventa `Expired` con la nota della scadenza.
+
+### 6. Riavvio durante l'attesa
+
+1. `close-won` su un deal che richiede approvazione e attendere la riga pendente in `/approvals`.
+2. Fermare l'orchestratore dal dashboard (o riavviare l'AppHost).
+3. Approvare dalla UI: il messaggio `approval-decided` arriva al nuovo processo — e se anche si perdesse, la sweep di riconciliazione trova la richiesta decisa con il workflow ancora in `AwaitingApproval`. L'ordine viene creato una volta sola, con la stessa chiave di idempotenza.
+
+### 7. D-1006 e D-1007 — gli esiti di arresto
+
+`close-won` su D-1006 → `Discarded` (valuta USD, verificata dall'host sui dati del deal). Su D-1007 → `Failed` (`IND-SEN-999` non esiste in ERP). In nessuno dei due casi si passa dall'approvazione.
+
+### Dove guardare nel dashboard
+
+Nelle tracce, una richiesta approvata produce una catena unica: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` di Intake, Fulfillment e Order con i loro `agent.handoff` e `tool.call` → `approval.requested` (con `approval.reasons`) → `approval.decided` (con `approval.decision` e `approval.decided_by`, da Approvals.Web) → `approval.resume` → `tool.call erp.create_order`. La ripresa si riattacca al contesto salvato in `ApprovalRequest.TraceParent`, quindi anche dopo ore resta lo stesso trace id (G5.4).

@@ -25,5 +25,9 @@ public static class O2CTelemetry
         public const string HandoffFrom = "handoff.from";
         public const string HandoffTo = "handoff.to";
         public const string HandoffReason = "handoff.reason";
+        public const string ApprovalId = "approval.id";
+        public const string ApprovalReasons = "approval.reasons";
+        public const string ApprovalDecision = "approval.decision";
+        public const string ApprovalDecidedBy = "approval.decided_by";
     }
 }

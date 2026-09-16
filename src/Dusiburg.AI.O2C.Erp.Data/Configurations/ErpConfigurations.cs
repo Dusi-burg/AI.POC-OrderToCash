@@ -103,6 +103,7 @@ internal sealed class OrderConfiguration : IEntityTypeConfiguration<Order>
         builder.Property(o => o.Status).HasColumnName("OrderStatusId").HasConversion<byte>();
         builder.Property(o => o.ExternalRef).HasMaxLength(50).IsUnicode(false);
         builder.Property(o => o.IdempotencyKey).HasMaxLength(100).IsUnicode(false);
+        builder.Property(o => o.BackorderNote).HasMaxLength(500);
 
         builder.HasIndex(o => o.PublicId).IsUnique();
         builder.HasIndex(o => o.OrderNumber).IsUnique();

@@ -37,7 +37,7 @@ Il POC istanzia questa architettura generale. Ogni strato è mappato ai componen
 | 3\. Tool layer | Funzioni invocabili dall'agente | Due server MCP (ERP, CRM) |
 | 4\. Integration / backend | API, messaggistica, normalizzazione | Minimal API ASP.NET Core \+ Azure Service Bus |
 | 5\. Dati e memoria | Stato, audit trail | Azure SQL (dati ERP mock \+ stato workflow) |
-| 6\. Governance trasversale | Identità, guardrail, controllo umano | Entra ID, ToolApprovalAgent, Teams/web approvals |
+| 6\. Governance trasversale | Identità, guardrail, controllo umano | Entra ID, tool sensibili con approvazione, Teams/web approvals |
 
 ## 3\. Piattaforma: perché Azure
 
@@ -139,7 +139,7 @@ Due server MCP distinti, entrambi in C\# con l'SDK ufficiale `ModelContextProtoc
 | `get_customer` | `vatNumber` oppure `email` (almeno uno) | `{ customer: { customerId, name, vatNumber, email, creditLimit, isBlocked } \| null }` (M20) |
 | `create_customer` | `name`, `vatNumber`, `email`, `address` | `{ customerId }` |
 | `check_stock` | `sku`, `quantity` | `{ sku, available: bool, onHand: int, leadTimeDays: int }` |
-| `create_order` | `customerId`, `lines[{ sku, quantity, unitPrice }]`, `externalRef`, `idempotencyKey` | `{ orderId, orderNumber, total, status }` |
+| `create_order` | `customerId`, `lines[{ sku, quantity, unitPrice }]`, `externalRef`, `idempotencyKey` | `{ orderId, orderNumber, total, status, backorderNote }` (M25) |
 | `get_order` | `orderId` | ordine completo con righe |
 
 ### 6\.2 Server `crm-mcp`
@@ -162,7 +162,9 @@ Regole comuni ai due server:
 
 ## 7\. Human\-in\-the\-loop
 
-L'approvazione umana è implementata con il middleware **`ToolApprovalAgent`** dell'Agent Framework, che intercetta le chiamate a tool sensibili e supporta regole di tipo "non chiedere più" per casi ripetitivi.
+L'approvazione umana usa il meccanismo nativo di Agent Framework per i tool sensibili (M8): `erp.create_order` è dichiarato **`ApprovalRequiredAIFunction`**, quindi il framework non lo invoca senza una risposta di approvazione ed espone la chiamata su una **porta esterna** del workflow (richiesta `ToolApprovalRequestContent`, risposta `ToolApprovalResponseContent`). Il middleware `ToolApprovalAgent` esiste ma serve alle regole "non chiedere più" e alla coda di richieste multiple, entrambe fuori dallo scope del POC: non viene usato.
+
+Alla richiesta esposta risponde **l'host, non il modello**: valuta la `ApprovalPolicy` sugli argomenti proposti e sui fatti del run e, se non serve nessuna approvazione, approva subito e il workflow prosegue senza che nessuno se ne accorga. `FunctionInvokingChatClient` chiede conferma per ogni chiamata del turno in cui compare un tool sensibile, anche per i tool che non lo sono: quelle richieste vengono approvate direttamente dall'host.
 
 **Regole che richiedono approvazione** (valutate prima di `erp.create_order`):
 
@@ -173,23 +175,38 @@ L'approvazione umana è implementata con il middleware **`ToolApprovalAgent`** d
 
 Semantica dei dati usati dalle regole (M9): una riga è disponibile se `OnHand − Reserved ≥ quantity`; `create_order` riserva lo stock (incrementa `Reserved`) nella stessa transazione che crea l'ordine; `creditLimit` non partecipa alle regole di approvazione.
 
-**Canale**\: Adaptive Card in Teams con azioni Approva/Rifiuta; fallback per il POC, una pagina web `/approvals` che elenca le richieste pendenti. Entrambi scrivono sullo stesso endpoint di callback.
+**Le giacenze su cui la policy decide le verifica l'orchestratore** (M25), riga per riga e con le quantità effettivamente proposte, subito prima di valutare le regole. Le chiamate a `check_stock` fatte da `FulfillmentAgent` restano nella traccia del run ma non sono la base della decisione: un agente che salta la verifica — o che la esegue con la quantità sbagliata — non deve poter far passare un ordine che andrebbe approvato. Una verifica che non riesce conta come riga non disponibile, così l'esito peggiore è un'approvazione in più.
 
-**Persistenza dello stato** — tabella `ApprovalRequest`\:
+**Ordine in backorder** (M25): l'ordine viene accettato e lo stock riservato per intero, quindi `Reserved` può superare `OnHand` — è la domanda impegnata, che un ERP completo userebbe per riordinare. Perché quell'informazione non resti implicita, `create_order` restituisce `backorderNote` con cosa manca e in che quantità (es. `IND-MOT-003: 2 PZ da ordinare`), calcolata prima della riserva e conservata sull'ordine; l'orchestratore la riporta come nota sul deal CRM.
+
+La policy è deterministica, scritta in C# e **unica**: i prompt degli agenti non contengono soglie né condizioni, e il totale su cui decide viene calcolato dalle righe proposte, non letto da ciò che dice il modello (§12, D17). A `OrderAgent` viene chiesto di proporre l'ordine anche per un cliente bloccato, perché l'approvazione è l'unica strada.
+
+**Canale**\: Adaptive Card in Teams con azioni Approva/Rifiuta; fallback per il POC, una pagina web `/approvals` che elenca le richieste pendenti. Entrambi scrivono sullo stesso endpoint di callback, `POST /api/approvals/{approvalId}/decision`.
+
+**Persistenza dello stato** — tabella `orch.ApprovalRequest` (M12, convenzioni di chiave di M16)\:
 
 | Campo | Tipo | Note |
 | --- | --- | --- |
-| `Id` | GUID | chiave |
-| `CorrelationId` | string | traccia l'intero workflow |
-| `DealId` | string | riferimento CRM |
+| `Id` | int | chiave |
+| `PublicId` | GUID univoco | `approvalId` esposto da UI, callback e messaggio |
+| `CorrelationId` | string | traccia l'intero workflow; è anche la sessione dei checkpoint |
+| `DealId`, `DealRevision` | string, int | riferimento CRM e revisione su cui è calcolata la chiave di idempotenza |
 | `PayloadJson` | text | proposta di ordine completa, mostrata all'approvatore |
-| `Reason` | string | quale regola ha scatenato l'approvazione |
-| `Status` | enum | `Pending`, `Approved`, `Rejected`, `Expired` |
+| `ReasonsJson` | text | quali regole hanno scatenato l'approvazione (array, possono essere più di una) |
+| `Total` | decimal | totale della proposta, per l'elenco della UI |
+| `Status` | enum | `Pending`, `Approved`, `Rejected`, `Expired` (FK verso la lookup `orch.ApprovalStatus`) |
 | `RequestedAt`, `DecidedAt` | datetime |  |
 | `DecidedBy` | string | UPN dell'approvatore |
 | `DecisionNote` | string | motivazione facoltativa |
+| `TraceParent` | string | contesto W3C dello span che ha generato la richiesta: la ripresa lo usa come parent |
+| `CheckpointId` | string | checkpoint del workflow da cui riprendere |
+| `RowVersion` | rowversion | concorrenza ottimistica: le transizioni sono ammesse solo da `Pending` |
 
-**Comportamento richiesto**\: l'attesa dell'approvazione **non** deve tenere il processo agente in memoria. Alla generazione della richiesta il workflow si sospende e lo stato viene persistito; alla decisione il workflow riprende da dove era. Scadenza dopo `APPROVAL_TIMEOUT_HOURS` (default 24) con transizione a `Expired`, nessun ordine creato e notifica al richiedente.
+**Comportamento richiesto**\: l'attesa dell'approvazione **non** tiene il processo agente in memoria. Alla generazione della richiesta il workflow si sospende, lo stato e il checkpoint vengono persistiti (`orch.WorkflowCheckpoint`, uno per superstep, tramite un `ICheckpointStore<JsonElement>` su SQL) e il messaggio del broker viene confermato; alla decisione il workflow riprende dal checkpoint, **anche in un altro processo**, e `create_order` parte con la stessa chiave di idempotenza della proposta.
+
+La decisione raggiunge l'orchestratore in due modi indipendenti: il messaggio `approval-decided` come acceleratore e una **sweep di riconciliazione** periodica e all'avvio, che cerca le richieste decise con il workflow non ancora ripreso. Un messaggio perso non blocca nulla, e due consegne simultanee non riprendono lo stesso workflow: l'uscita da `AwaitingApproval` è un **UPDATE condizionale** verso la fase `Resuming` e procede solo chi tocca una riga (M12). Il possesso scade dopo `ResumeClaimTimeout`, così un processo morto durante la ripresa non lascia il workflow appeso.
+
+Rifiuto e scadenza non riaprono il workflow: non c'è nessun ordine da creare, quindi l'host scrive direttamente l'esito sul CRM (`Rejected` con la nota del decisore, `Expired` con la nota della scadenza) e chiude il workflow. Scadenza dopo `APPROVAL_TIMEOUT_HOURS` (default 24, decimali ammessi per la demo) con transizione a `Expired` sotto `RowVersion`, così una decisione concorrente e la scadenza non possono sovrapporsi.
 
 ## 8\. Modello dati del mock ERP
 
@@ -200,18 +217,20 @@ Database relazionale (Azure SQL in cloud, SQL Server LocalDB `(localdb)\localdev
 | `Customer` | `Id`, `Name`, `VatNumber`, `Email`, `Address`, `CreditLimit`, `IsBlocked` |
 | `Product` | `Id`, `Sku` (univoco), `Description`, `ListPrice`, `Uom` |
 | `StockLevel` | `Id`, `ProductId` (univoco, 1:1), `OnHand`, `Reserved`, `LeadTimeDays`, `RowVersion` |
-| `Order` | `Id`, `PublicId` (GUID univoco), `OrderNumber`, `CustomerId`, `Total`, `OrderStatusId`, `ExternalRef`, `IdempotencyKey`, `CreatedAt` |
+| `Order` | `Id`, `PublicId` (GUID univoco), `OrderNumber`, `CustomerId`, `Total`, `OrderStatusId`, `ExternalRef`, `IdempotencyKey`, `BackorderNote` (M25), `CreatedAt` |
 | `OrderStatus` | `Id` (tinyint = valore di `OrderStatus`), `Name` — lookup generata dall'enum |
 | `OrderLine` | `Id`, `OrderId`, `ProductId`, `Quantity`, `UnitPrice` |
 | `ApprovalRequest` | vedi §7 |
+| `ApprovalStatus`, `ApprovalReason` | `Id` (tinyint = valore dell'enum), `Name` — lookup generate dagli enum (M12) |
 | `WorkflowState` | `Id`, `CorrelationId` (univoco), `DealId`, `DealRevision` (univoco con `DealId`), `WorkflowPhaseId`, `StateJson`, `CreatedAt`, `UpdatedAt`, `RowVersion` (M11) |
-| `WorkflowPhase` | `Id` (tinyint = valore di `WorkflowPhase`), `Name` — lookup generata dall'enum (M11) |
+| `WorkflowPhase` | `Id` (tinyint = valore di `WorkflowPhase`), `Name` — lookup generata dall'enum (M11); dalla Fase 5 comprende `AwaitingApproval` e `Resuming` (M12) |
+| `WorkflowCheckpoint` | `Id` (bigint crescente = ordine di commit), `SessionId` (= correlation id), `CheckpointId`, `ParentCheckpointId`, `PayloadJson`, `CreatedAt`; univoco su `(SessionId, CheckpointId)` (M12) |
 
 Vincolo: indice univoco su `Order.IdempotencyKey` — è il meccanismo che rende impossibile la creazione doppia di un ordine a fronte di un retry dell'agente.
 
 Convenzioni di chiave (M16): la PK numerica si chiama sempre `Id` e le FK sono qualificate (`CustomerId`); non si usano PK GUID — il GUID esposto come `orderId` dai contratti di §6 è la colonna univoca `Order.PublicId`; le chiavi di business stringa sono colonne univoche accanto a `Id` (`Product.Sku`; nel CRM `Company.Code` = `companyId` e `Deal.Code` = `dealId`, con `DealLineItem` e `DealNote` figlie di `Deal`). I contratti di §6 non cambiano: la traduzione fra nomi di tabella e nomi di contratto è nel codice.
 
-Schemi (M2): le tabelle ERP stanno nello schema `erp` (`ErpDbContext` in `Erp.Data`, usato da `Erp.Api`), `ApprovalRequest` e `WorkflowState` nello schema `orch` (Orchestrator), il CRM mock nello schema `crm` (`CrmDbContext` in `Crm.Data`, usato da `Crm.Mcp`: `Company`, `Deal`, `DealLineItem`, `DealNote`). Stesso database `O2C`, DbContext separati.
+Schemi (M2): le tabelle ERP stanno nello schema `erp` (`ErpDbContext` in `Erp.Data`, usato da `Erp.Api`), `ApprovalRequest`, `WorkflowState` e `WorkflowCheckpoint` nello schema `orch` (Orchestrator e `Approvals.Web`), il CRM mock nello schema `crm` (`CrmDbContext` in `Crm.Data`, usato da `Crm.Mcp`: `Company`, `Deal`, `DealLineItem`, `DealNote`). Stesso database `O2C`, DbContext separati.
 
 Enum e creazione dello schema (M17): ogni enum persistito è una FK verso una tabella di lookup con PK `tinyint` uguale al valore esplicito del membro nel codice e `Name` univoco, righe generate dall'enum (`erp.OrderStatus`; `crm.DealStage` per lo stage del deal, `crm.DealStatus` per lo stato O2C). Non si usano migration: il database si crea da zero dal modello con `tools/Dusiburg.AI.O2C.DbInit` (drop + create), e ogni modifica del modello si applica ricreandolo.
 
@@ -220,7 +239,7 @@ Enum e creazione dello schema (M17): ogni enum persistito è una FK verso una ta
 | Componente | Tecnologia (cloud) | In locale |
 | --- | --- | --- |
 | Linguaggio / runtime | C\# / .NET 10 (`net10.0`, LTS — M1; upgrade a .NET 11 successivo) | identico |
-| Orchestrazione agenti | Microsoft Agent Framework (Handoff orchestration, ToolApprovalAgent) | identico |
+| Orchestrazione agenti | Microsoft Agent Framework (Handoff orchestration, approvazione dei tool sensibili) | identico |
 | Tool layer | MCP C\# SDK (`ModelContextProtocol`, v2.x) | identico |
 | Modello | Claude (`claude-sonnet-5`) via API Anthropic, SDK `Anthropic` per C# con `IChatClient`; su Azure, Claude in Microsoft Foundry (M23) | Ollama nativo Windows (`qwen3.5:9b`) via `IChatClient` (§3.3) |
 | Persistenza | Azure SQL serverless, EF Core | SQL Server LocalDB `(localdb)\localdev`, EF Core (M2) |
@@ -244,8 +263,8 @@ AI.POC-OrderToCash/
 │  ├─ Dusiburg.AI.O2C.Crm.Mcp/             # Server MCP + CRM mock persistente dietro ICrmClient (M6); adapter HubSpot opzionale
 │  ├─ Dusiburg.AI.O2C.Crm.Data/            # Modello EF Core del CRM mock, schema crm (M17)
 │  ├─ Dusiburg.AI.O2C.Mcp.Hosting/         # Infrastruttura comune dei server MCP: API key, filtro sui tool, errori (M21)
-│  ├─ Dusiburg.AI.O2C.Orchestration.Data/  # Stato dell'orchestrazione, schema orch: WorkflowState, poi ApprovalRequest (M11)
-│  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, ToolApprovalAgent
+│  ├─ Dusiburg.AI.O2C.Orchestration.Data/  # Stato dell'orchestrazione, schema orch: WorkflowState, ApprovalRequest, WorkflowCheckpoint (M11, M12)
+│  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, policy di approvazione
 │  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
 │  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
 ├─ tests/
@@ -267,8 +286,10 @@ Chiavi di configurazione (user\-secrets in locale, secret di Container Apps o Ke
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | in locale punta al dashboard Aspire |
 | `ERP_MCP_URL`, `CRM_MCP_URL` | endpoint dei due server MCP |
 | `HUBSPOT_TOKEN` | solo se si usa il CRM reale |
-| `APPROVAL_THRESHOLD_EUR` | soglia di approvazione, default `10000` |
-| `APPROVAL_TIMEOUT_HOURS` | scadenza richieste, default `24` |
+| `APPROVAL_THRESHOLD_EUR` | soglia di approvazione, default `10000` (confronto stretto) |
+| `APPROVAL_TIMEOUT_HOURS` | scadenza richieste, default `24`; accetta i decimali per la demo (M12) |
+| `APPROVAL_SWEEP_MINUTES` | intervallo di riconciliazione e scadenza, default `5`, minimo 10 secondi; da qui deriva anche la scadenza del possesso di una ripresa, almeno 5 minuti (M12) |
+| `Approvals__ApproverUpn` | UPN registrato come decisore in locale, default `approver@dusiburg.local` (M12) |
 | `TEAMS_WEBHOOK_URL` | canale di approvazione |
 | `SERVICEBUS_CONNECTION` | topic `deal-closed-won` |
 | `SQL_CONNECTION_STRING` | persistenza |
@@ -292,7 +313,7 @@ Ogni fase è completa e verificabile prima di passare alla successiva. Le Fasi 1
 **Fase 4 — Multi\-agente.** Split in `IntakeAgent`, `FulfillmentAgent`, `OrderAgent` con Handoff orchestration. \
 *Accettazione*\: i log/trace mostrano i due passaggi di handoff con il contesto trasferito; il risultato funzionale resta identico alla Fase 3.
 
-**Fase 5 — Human\-in\-the\-loop.** `ToolApprovalAgent` su `erp.create_order`, regole di §7, persistenza richieste, canale Teams o web, sospensione e ripresa del workflow. \
+**Fase 5 — Human\-in\-the\-loop.** `erp.create_order` come tool con approvazione richiesta, regole di §7 in una policy deterministica, persistenza di richieste e checkpoint, canale Teams o web, sospensione e ripresa del workflow. \
 *Accettazione*\: un deal sopra soglia genera una richiesta pendente e **nessun** ordine; dopo approvazione l'ordine viene creato una sola volta; dopo rifiuto nessun ordine e il deal CRM riporta lo stato di rifiuto; un riavvio del processo durante l'attesa non perde il workflow.
 
 **Fase 6 — Deploy e osservabilità.** Bicep/azd, Container Apps, identità Entra dedicata, tracing OpenTelemetry end\-to\-end. \
@@ -330,7 +351,9 @@ Non implementare nel POC: fatturazione e pagamenti; gestione multi\-tenant; aute
 | **MCP** (Model Context Protocol) | Standard aperto per esporre sistemi e dati come tool consumabili da qualunque agente |
 | **A2A** (Agent\-to\-Agent) | Protocollo per far scoprire e collaborare agenti di framework o cloud diversi |
 | **Handoff orchestration** | Pattern in cui gli agenti si trasferiscono il controllo lungo archi dichiarati |
-| **ToolApprovalAgent** | Middleware dell'Agent Framework che intercetta i tool sensibili per l'approvazione |
+| **ApprovalRequiredAIFunction** | Tool che il framework non invoca senza una risposta di approvazione: la chiamata viene esposta su una porta esterna del workflow e la risposta arriva in un run successivo |
+| **ToolApprovalAgent** | Middleware dell'Agent Framework per le regole "non chiedere più" e la coda di richieste multiple: esiste, ma nel POC è fuori scope |
+| **Checkpoint del workflow** | Fotografia dello stato di un run, scritta a ogni superstep su `orch.WorkflowCheckpoint`: è ciò da cui il workflow riprende, anche in un altro processo |
 | **Human\-in\-the\-loop** | Punto di conferma umana obbligatoria prima di azioni ad alto impatto |
 | **RAG** | Retrieval\-Augmented Generation, grounding del modello su dati aziendali |
 | **Microsoft Agent Framework** | Framework .NET/Python, fusione di Semantic Kernel e AutoGen, GA da aprile 2026 |
@@ -364,11 +387,11 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M5 | §10 | Progetto di test `tests/Dusiburg.AI.O2C.Mcp.Tests` | Applicata (Fase 0) |
 | M6 | §9, §10 | CRM mock persistente dentro `Crm.Mcp` dietro `ICrmClient` | Applicata (Fase 0) |
 | M7 | §3.1, §3.2, §9, §10 | Messaggistica locale su RabbitMQ (container in WSL tenuto attivo dall'AppHost), exchange `deal-closed-won` | Applicata (Fase 0) |
-| M8 | §7, §13 | Nome e semantica del meccanismo di approvazione (`ToolApprovalAgent`), da confermare con lo spike | Da decidere (Fase 5) |
+| M8 | §7, §9, §13, §15 | Meccanismo di approvazione: `erp.create_order` dichiarato `ApprovalRequiredAIFunction`, con la chiamata esposta su una porta esterna del workflow (`ToolApprovalRequestContent` / `ToolApprovalResponseContent`) e la policy applicata dall'host; `ToolApprovalAgent` non usato perché copre le regole "non chiedere più", fuori scope | Applicata (Fase 5) |
 | M9 | §5, §7 | Regole di dominio: riga non disponibile e SKU inesistente, solo EUR, prezzo del deal, riserva dello stock | Applicata (Fase 0) |
 | M10 | §10 | Autenticazione locale al modello con `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | Applicata (Fase 3) |
 | M11 | §8, §10 | Progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`); `WorkflowState` con PK `Id`, `CorrelationId` univoco, `(DealId, DealRevision)` univoco e lookup `WorkflowPhase`; schema creato da `DbInit` | Applicata (Fase 4) |
-| M12 | §7 | Messaggio interno `approval-decided`, colonna `TraceParent` su `ApprovalRequest` | Da decidere (Gate Fase 5) |
+| M12 | §7, §8, §10 | Sospensione e ripresa: `ApprovalRequest` con PK numerica e `PublicId` GUID, `ReasonsJson` (più motivi), `TraceParent`, `CheckpointId` e `RowVersion`; lookup `ApprovalStatus` e `ApprovalReason`; checkpoint del workflow su `orch.WorkflowCheckpoint`; messaggio `approval-decided` come acceleratore più sweep di riconciliazione; rifiuto e scadenza chiusi dall'host senza riaprire il workflow; `APPROVAL_TIMEOUT_HOURS` con decimali, `APPROVAL_SWEEP_MINUTES`, `Approvals__ApproverUpn` | Applicata (Fase 5) |
 | M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
 | M14 | §10 | Repository `AI.POC-OrderToCash` (clone GitHub) invece di `o2c-agentic-poc` | Applicata (Fase 0) |
 | M15 | §10 | Progetti, cartelle e namespace con root name `Dusiburg.AI.O2C` (es. `src/Dusiburg.AI.O2C.Erp.Api`), solution `Dusiburg.AI.O2C.slnx` | Applicata (dopo Fase 0) |
@@ -381,3 +404,4 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M22 | §6 | Errore di tool come risultato MCP `isError = true` con l'envelope `{ error: { code, message } }` come testo JSON; `structuredContent` solo per i risultati positivi | Applicata (Fase 2) |
 | M23 | §3.1, §3.3, §9, §10 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`, SDK `Anthropic` con `IChatClient`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`, chiavi `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`, Ollama nativo Windows con `qwen3.5:9b` misurato senza criteri vincolanti; Claude in Microsoft Foundry come variante Azure per la Fase 6 | Applicata (Fase 3) |
 | M24 | §5, §10 | Workflow a tre agenti con l'handoff di Agent Framework: modalità autonoma con limite di turni, tool locali di verdetto (`report_discarded`, `report_failed`) e terminazione sui fatti del run; esiti `Discarded`/`Failed` verificati e scritti sul CRM dall'orchestratore; `O2C_AGENT_MODE=multi\|single`; trigger RabbitMQ con consumer idempotente su deal e revisione | Applicata (Fase 4) |
+| M25 | §6.1, §7, §8 | Le giacenze su cui decide la policy le verifica l'orchestratore sulle righe proposte, non l'agente; `create_order` restituisce `backorderNote` (cosa manca e in che quantità), conservata in `erp.Order.BackorderNote` e riportata come nota sul deal CRM. Emerso da un run dal vivo in cui `FulfillmentAgent` ha saltato `check_stock` e l'ordine è passato senza approvazione | Applicata (Fase 5) |

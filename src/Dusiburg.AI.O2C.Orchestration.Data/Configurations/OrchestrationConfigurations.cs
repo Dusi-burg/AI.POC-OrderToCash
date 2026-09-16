@@ -1,4 +1,5 @@
 using Dusiburg.AI.O2C.Orchestration.Data.Entities;
+using Dusiburg.AI.O2C.Shared.Contracts.Approvals;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -48,5 +49,56 @@ internal sealed class WorkflowStateConfiguration : IEntityTypeConfiguration<Work
             .WithMany()
             .HasForeignKey(s => s.Phase)
             .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class ApprovalStatusConfiguration() : EnumLookupConfiguration<ApprovalStatus>("ApprovalStatus");
+
+internal sealed class ApprovalReasonConfiguration() : EnumLookupConfiguration<ApprovalReason>("ApprovalReason");
+
+internal sealed class ApprovalRequestConfiguration : IEntityTypeConfiguration<ApprovalRequest>
+{
+    public void Configure(EntityTypeBuilder<ApprovalRequest> builder)
+    {
+        builder.ToTable("ApprovalRequest", t => t.HasCheckConstraint("CK_ApprovalRequest_Total", "[Total] >= 0"));
+
+        builder.HasKey(r => r.Id);
+
+        builder.Property(r => r.CorrelationId).HasMaxLength(128).IsUnicode(false);
+        builder.Property(r => r.DealId).HasMaxLength(20).IsUnicode(false);
+        builder.Property(r => r.Total).HasPrecision(18, 2);
+        builder.Property(r => r.Status).HasColumnName("ApprovalStatusId").HasConversion<byte>();
+        builder.Property(r => r.DecidedBy).HasMaxLength(256);
+        builder.Property(r => r.DecisionNote).HasMaxLength(1000);
+        builder.Property(r => r.TraceParent).HasMaxLength(64).IsUnicode(false);
+        builder.Property(r => r.CheckpointId).HasMaxLength(64).IsUnicode(false);
+        builder.Property(r => r.RowVersion).IsRowVersion();
+
+        builder.HasIndex(r => r.PublicId).IsUnique();
+        builder.HasIndex(r => r.CorrelationId);
+
+        // Elenco della UI e sweep di scadenza: entrambi filtrano per stato e ordinano per data di richiesta.
+        builder.HasIndex(r => new { r.Status, r.RequestedAt });
+
+        builder.HasOne<EnumLookup<ApprovalStatus>>()
+            .WithMany()
+            .HasForeignKey(r => r.Status)
+            .OnDelete(DeleteBehavior.Restrict);
+    }
+}
+
+internal sealed class WorkflowCheckpointConfiguration : IEntityTypeConfiguration<WorkflowCheckpoint>
+{
+    public void Configure(EntityTypeBuilder<WorkflowCheckpoint> builder)
+    {
+        builder.ToTable("WorkflowCheckpoint");
+
+        builder.HasKey(c => c.Id);
+
+        builder.Property(c => c.SessionId).HasMaxLength(128).IsUnicode(false);
+        builder.Property(c => c.CheckpointId).HasMaxLength(64).IsUnicode(false);
+        builder.Property(c => c.ParentCheckpointId).HasMaxLength(64).IsUnicode(false);
+
+        builder.HasIndex(c => new { c.SessionId, c.CheckpointId }).IsUnique();
     }
 }

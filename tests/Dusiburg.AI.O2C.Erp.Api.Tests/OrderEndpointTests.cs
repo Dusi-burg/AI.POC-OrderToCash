@@ -48,6 +48,46 @@ public class OrderEndpointTests : ErpApiTestBase
 
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.Created));
         Assert.That(created!.Status, Is.EqualTo(OrderStatus.Backorder));
+
+        // D-1003 chiede 5 IND-MOT-003 con 3 disponibili: due da approvvigionare (M25).
+        Assert.That(created.BackorderNote, Is.EqualTo("IND-MOT-003: 2 PZ da ordinare"));
+    }
+
+    [Test]
+    public async Task CreateOrder_Backorder_KeepsTheNoteOnTheOrderAndOnARetry()
+    {
+        //SETUP
+        using var client = Factory.CreateClient();
+        var request = await OrderForDealAsync(client, DemoCatalog.Deals.Single(d => d.DealId == "D-1003"));
+
+        //SUT: la riserva è già stata fatta, quindi la nota non sarebbe più ricavabile dalla giacenza corrente.
+        using var first = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
+        using var retry = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
+
+        var created = await first.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
+        var repeated = await retry.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
+
+        Assert.That(repeated!.BackorderNote, Is.EqualTo(created!.BackorderNote));
+
+        using var fetched = await client.GetAsync($"/api/orders/{created.OrderId}", CancellationToken);
+        var order = await fetched.Content.ReadFromJsonAsync<OrderDto>(CancellationToken);
+
+        Assert.That(order!.BackorderNote, Is.EqualTo(created.BackorderNote));
+    }
+
+    [Test]
+    public async Task CreateOrder_AllLinesAvailable_HasNoBackorderNote()
+    {
+        //SETUP
+        using var client = Factory.CreateClient();
+        var request = await OrderForDealAsync(client, Deal1001);
+
+        //SUT
+        using var response = await client.PostAsJsonAsync("/api/orders", request, CancellationToken);
+        var created = await response.Content.ReadFromJsonAsync<CreateOrderResponse>(CancellationToken);
+
+        Assert.That(created!.Status, Is.EqualTo(OrderStatus.Confirmed));
+        Assert.That(created.BackorderNote, Is.Null);
     }
 
     [Test]

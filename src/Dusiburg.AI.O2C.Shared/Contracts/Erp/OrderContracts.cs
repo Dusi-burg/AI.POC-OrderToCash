@@ -13,8 +13,12 @@ public sealed record CreateOrderRequest(
     string ExternalRef,
     string IdempotencyKey);
 
-/// <summary>Output di <c>create_order</c>.</summary>
-public sealed record CreateOrderResponse(Guid OrderId, string OrderNumber, decimal Total, OrderStatus Status);
+/// <summary>
+/// Output di <c>create_order</c>. <see cref="BackorderNote"/> è valorizzato solo per un ordine in backorder e dice, in
+/// chiaro, cosa manca e in che quantità (es. <c>IND-MOT-003: 2 PZ da ordinare</c>): l'ordine è accettato e lo stock
+/// riservato, ma quei pezzi vanno approvvigionati. L'orchestratore lo riporta sulla nota del deal CRM.
+/// </summary>
+public sealed record CreateOrderResponse(Guid OrderId, string OrderNumber, decimal Total, OrderStatus Status, string? BackorderNote = null);
 
 /// <summary>Input di <c>get_order</c>.</summary>
 public sealed record GetOrderRequest(Guid OrderId);
@@ -31,4 +35,5 @@ public sealed record OrderDto(
     string ExternalRef,
     string IdempotencyKey,
     DateTimeOffset CreatedAt,
-    IReadOnlyList<OrderLineDto> Lines);
+    IReadOnlyList<OrderLineDto> Lines,
+    string? BackorderNote = null);

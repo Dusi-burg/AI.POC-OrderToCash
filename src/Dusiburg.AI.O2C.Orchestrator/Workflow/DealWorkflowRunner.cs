@@ -2,12 +2,12 @@ using System.Diagnostics;
 using System.Text.Json;
 using Dusiburg.AI.O2C.Orchestration.Data.Entities;
 using Dusiburg.AI.O2C.Orchestrator.Agents;
-using Dusiburg.AI.O2C.Orchestrator.Model;
+using Dusiburg.AI.O2C.Orchestrator.Governance;
 using Dusiburg.AI.O2C.Orchestrator.Telemetry;
 using Dusiburg.AI.O2C.Orchestrator.Tools;
+using Dusiburg.AI.O2C.Shared.Contracts.Approvals;
 using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Dusiburg.AI.O2C.Shared.Telemetry;
-using Microsoft.Agents.AI;
 using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.AI;
 
@@ -16,18 +16,18 @@ namespace Dusiburg.AI.O2C.Orchestrator.Workflow;
 /// <summary>
 /// Workflow a tre agenti con handoff di Agent Framework (4.3, D44). Gli agenti chiamano i tool e i trasferimenti;
 /// l'host legge il deal, persiste lo stato, termina sui fatti, decide l'esito e scrive sul CRM gli esiti di arresto (G4.1).
+/// <para>
+/// Dalla Fase 5 il run è checkpointato (sessione = correlation id): se la policy chiede un'approvazione il workflow si
+/// ferma con <c>create_order</c> ancora da eseguire e la ripresa avviene altrove, anche in un altro processo (D16).
+/// </para>
 /// </summary>
 public sealed class DealWorkflowRunner(
-    IModelClientFactory models,
-    IToolCatalog toolCatalog,
+    DealWorkflowEngine engine,
     IWorkflowStateStore stateStore,
+    CheckpointManager checkpoints,
+    IApprovalStore approvalStore,
     ILogger<DealWorkflowRunner> logger) : IDealAgent
 {
-    /// <summary>Limite di continuazioni autonome per agente: senza limite un agente che non passa la mano gira a vuoto (spike S4: 104 turni).</summary>
-    public const int MaxAutonomousTurns = 3;
-
-    private const string HandoffToolPrefix = "handoff_to";
-
     public string Mode => AgentModes.Multi;
 
     /// <summary>Con la rielaborazione consentita il workflow parte sempre, quindi il risultato non è mai nullo.</summary>
@@ -41,9 +41,9 @@ public sealed class DealWorkflowRunner(
     public async Task<DealProcessingResult?> ProcessAsync(
         string dealId, string correlationId, int? dealRevision, bool reprocess, CancellationToken cancellationToken)
     {
-        var tools = await toolCatalog.GetToolsAsync(cancellationToken);
-        var context = new DealRunContext(dealId, correlationId, "Host", new HashSet<string>());
-        var revision = dealRevision ?? await ReadRevisionAsync(tools, context, cancellationToken);
+        var tools = await engine.GetToolsAsync(cancellationToken);
+        var probe = new DealRunContext(dealId, correlationId, "Host", new HashSet<string>());
+        var revision = dealRevision ?? await ReadRevisionAsync(tools, probe, cancellationToken);
 
         if (!await stateStore.TryStartAsync(correlationId, dealId, revision, reprocess, cancellationToken))
         {
@@ -52,119 +52,81 @@ public sealed class DealWorkflowRunner(
             return null;
         }
 
-        using var model = models.Create();
+        var context = new DealRunContext(dealId, correlationId, "Host", new HashSet<string>());
 
-        var agents = WorkflowAgents.All.ToDictionary(a => a.Name, a => CreateAgent(a, model, tools, context));
+        using var setup = await engine.BuildAsync(context, cancellationToken);
 
-        var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(agents[WorkflowAgents.Intake.Name])
-            .WithHandoff(agents[WorkflowAgents.Intake.Name], agents[WorkflowAgents.Fulfillment.Name], "The deal passed intake validation.")
-            .WithHandoff(agents[WorkflowAgents.Fulfillment.Name], agents[WorkflowAgents.Order.Name], "Stock was checked for every line item.")
-            .WithAutonomousMode(MaxAutonomousTurns)
-            .WithTerminationCondition(_ => context.IsTerminal)
-            .Build();
+        WorkflowPumpResult pumped;
+        string? checkpoint;
 
-        await RunAsync(workflow, context, cancellationToken);
+        // Il run si chiude prima di qualsiasi effetto collaterale: le scritture su CRM e database avvengono a workflow fermo.
+        await using (var run = await InProcessExecution.RunStreamingAsync(
+            setup.Workflow,
+            new List<ChatMessage> { new(ChatRole.User, $"Process CRM deal {dealId}.") },
+            checkpoints,
+            correlationId,
+            cancellationToken))
+        {
+            await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
 
-        var result = await CompleteAsync(context, tools, model, cancellationToken);
+            pumped = await engine.PumpAsync(run, context, setup.Tools, cancellationToken);
 
-        await stateStore.UpdateAsync(correlationId, PhaseOf(result.Status), context.ToStateJson(), cancellationToken);
+            // Il checkpoint dell'ultimo superstep contiene la chiamata a create_order in attesa di risposta.
+            checkpoint = run.LastCheckpoint?.CheckpointId;
+        }
+
+        if (pumped.Suspended is { } proposal)
+        {
+            return await SuspendAsync(setup, context, revision, proposal, pumped.Reasons, checkpoint, cancellationToken);
+        }
+
+        var result = await engine.CompleteAsync(context, setup.Tools, setup.Model, cancellationToken);
+
+        await stateStore.UpdateAsync(correlationId, DealWorkflowEngine.PhaseOf(result.Status), context.ToStateJson(), cancellationToken);
 
         return result;
     }
 
-    private async Task RunAsync(Microsoft.Agents.AI.Workflows.Workflow workflow, DealRunContext context, CancellationToken cancellationToken)
+    /// <summary>
+    /// Sospensione (5.2): nessuna chiamata all'ERP, richiesta di approvazione e stato persistiti insieme al checkpoint da
+    /// cui riprendere, deal segnato <c>ApprovalPending</c> con i motivi. Dopo questo metodo non resta nulla in memoria.
+    /// </summary>
+    private async Task<DealProcessingResult> SuspendAsync(
+        WorkflowRunSetup setup,
+        DealRunContext context,
+        int revision,
+        ApprovalPayload proposal,
+        IReadOnlyList<ApprovalReason> reasons,
+        string? checkpoint,
+        CancellationToken cancellationToken)
     {
-        Activity? agentRun = null;
-        string? currentAgent = null;
-        var seenCalls = new HashSet<string>();
+        using var activity = OrchestratorTelemetry.Source.StartActivity(OrchestratorTelemetry.ApprovalRequestedActivityName);
+        activity?.SetTag(O2CTelemetry.Attributes.CorrelationId, context.CorrelationId);
+        activity?.SetTag(O2CTelemetry.Attributes.DealId, context.DealId);
+        activity?.SetTag(O2CTelemetry.Attributes.ApprovalReasons, string.Join(",", reasons));
 
-        try
+        if (checkpoint is null)
         {
-            await using var run = await InProcessExecution.RunStreamingAsync(
-                workflow, new List<ChatMessage> { new(ChatRole.User, $"Process CRM deal {context.DealId}.") }, cancellationToken: cancellationToken);
-
-            await run.TrySendMessageAsync(new TurnToken(emitEvents: true));
-
-            await foreach (var workflowEvent in run.WatchStreamAsync(cancellationToken))
-            {
-                if (workflowEvent is not AgentResponseUpdateEvent update)
-                {
-                    continue;
-                }
-
-                var agentName = WorkflowAgents.All.FirstOrDefault(a => update.ExecutorId.StartsWith(a.Name, StringComparison.Ordinal))?.Name;
-
-                if (agentName is not null && agentName != currentAgent)
-                {
-                    agentRun?.Dispose();
-                    agentRun = OrchestratorTelemetry.Source.StartActivity("agent.run");
-                    agentRun?.SetTag(O2CTelemetry.Attributes.AgentName, agentName);
-                    agentRun?.SetTag(O2CTelemetry.Attributes.CorrelationId, context.CorrelationId);
-                    currentAgent = agentName;
-
-                    await stateStore.UpdateAsync(context.CorrelationId, PhaseOfAgent(agentName), context.ToStateJson(), cancellationToken);
-                }
-
-                foreach (var call in update.Update.Contents.OfType<FunctionCallContent>())
-                {
-                    if (currentAgent is null || !call.Name.StartsWith(HandoffToolPrefix, StringComparison.Ordinal) || !seenCalls.Add(call.CallId))
-                    {
-                        continue;
-                    }
-
-                    RecordHandoff(context, currentAgent, call);
-                }
-            }
-        }
-        finally
-        {
-            agentRun?.Dispose();
-        }
-    }
-
-    private void RecordHandoff(DealRunContext context, string from, FunctionCallContent call)
-    {
-        var to = WorkflowAgents.NextOf(from)?.Name ?? "?";
-        var reason = call.Arguments?.TryGetValue("reasonForHandoff", out var value) == true
-            ? value is JsonElement { ValueKind: JsonValueKind.String } json ? json.GetString() : value?.ToString()
-            : null;
-
-        using var handoff = OrchestratorTelemetry.Source.StartActivity("agent.handoff");
-        handoff?.SetTag(O2CTelemetry.Attributes.HandoffFrom, from);
-        handoff?.SetTag(O2CTelemetry.Attributes.HandoffTo, to);
-        handoff?.SetTag(O2CTelemetry.Attributes.HandoffReason, reason);
-        handoff?.SetTag(O2CTelemetry.Attributes.CorrelationId, context.CorrelationId);
-
-        context.RecordHandoff(new HandoffRecord(from, to, reason));
-
-        logger.LogInformation("Handoff {HandoffFrom} → {HandoffTo} per {DealId}: {HandoffReason}", from, to, context.DealId, reason);
-    }
-
-    private static AIAgent CreateAgent(AgentDefinition definition, ModelClient model, IReadOnlyList<AgentTool> tools, DealRunContext context)
-    {
-        var scope = new AgentScope(definition.Name, definition.AllowedTools);
-
-        var agentTools = tools
-            .Where(tool => definition.AllowedTools.Contains(tool.QualifiedName))
-            .Select(tool => (AITool)new GuardedToolFunction(tool, context, scope))
-            .ToList();
-
-        if (definition.StopVerdict is not null)
-        {
-            agentTools.Add(WorkflowAgents.CreateVerdictTool(definition, context));
+            logger.LogError("Deal {DealId}: nessun checkpoint disponibile alla sospensione", context.DealId);
         }
 
-        var chatOptions = model.DefaultOptions.Clone();
-        chatOptions.Instructions = definition.Instructions;
-        chatOptions.Tools = agentTools;
+        var approvalId = await approvalStore.CreatePendingAsync(
+            context, revision, proposal, reasons, checkpoint, activity?.Id ?? Activity.Current?.Id, cancellationToken);
 
-        return new ChatClientAgent(model.ChatClient, new ChatClientAgentOptions
-        {
-            Id = definition.Name,
-            Name = definition.Name,
-            Description = definition.Description,
-            ChatOptions = chatOptions
-        });
+        activity?.SetTag(O2CTelemetry.Attributes.ApprovalId, approvalId);
+
+        var note = $"Approvazione richiesta: {string.Join(", ", reasons)}. Totale {proposal.Total:N2} EUR.";
+
+        await engine.WriteCrmOutcomeAsync(setup.Tools, context, DealStatus.ApprovalPending, note, cancellationToken);
+
+        await stateStore.UpdateAsync(
+            context.CorrelationId, WorkflowPhase.AwaitingApproval, context.ToStateJson(), cancellationToken);
+
+        logger.LogInformation(
+            "Deal {DealId} sospeso in attesa di approvazione {ApprovalId} (checkpoint {CheckpointId})",
+            context.DealId, approvalId, checkpoint);
+
+        return DealWorkflowEngine.Result(context, DealStatus.ApprovalPending, [note], setup.Model);
     }
 
     /// <summary>Lettura deterministica del deal da parte dell'host: serve la revisione per l'idempotenza prima di avviare gli agenti.</summary>
@@ -175,91 +137,4 @@ public sealed class DealWorkflowRunner(
 
         return result.Succeeded && result.Data.Deserialize<DealDto>(AgentJson.Options) is { } deal ? deal.Revision : 0;
     }
-
-    /// <summary>Esito dai fatti (come in Fase 3) e scrittura sul CRM degli esiti di arresto da parte dell'host (G4.1).</summary>
-    private async Task<DealProcessingResult> CompleteAsync(
-        DealRunContext context, IReadOnlyList<AgentTool> tools, ModelClient model, CancellationToken cancellationToken)
-    {
-        var reasons = new List<string>();
-        DealStatus status;
-
-        if (context.Order is not null && context.CrmStatus == DealStatus.OrderCreated)
-        {
-            status = DealStatus.OrderCreated;
-        }
-        else if (context.Verdict is { Status: DealStatus.Discarded } discarded && IntakeRejects(context.Deal))
-        {
-            status = DealStatus.Discarded;
-            reasons.Add($"{discarded.Agent}: {discarded.Reason}");
-        }
-        else
-        {
-            status = DealStatus.Failed;
-
-            if (context.Verdict is { } verdict)
-            {
-                reasons.Add($"{verdict.Agent}: {verdict.Reason}");
-            }
-
-            if (context.Verdict is { Status: DealStatus.Discarded })
-            {
-                reasons.Add("Verdetto Discarded non confermato dai dati del deal.");
-            }
-
-            if (context.Order is null && context.Verdict is null)
-            {
-                reasons.Add("Nessun ordine creato in ERP.");
-            }
-        }
-
-        if (status != DealStatus.OrderCreated && context.CrmStatus != status && context.Order is null)
-        {
-            await WriteCrmOutcomeAsync(tools, context, status, string.Join(" ", reasons), cancellationToken);
-        }
-
-        return new DealProcessingResult(
-            context.DealId, context.CorrelationId, status, context.Order?.OrderNumber, reasons, null,
-            ModelOutcomeValid: context.IsTerminal, model.Provider, model.ModelId, context.ToolCalls)
-        {
-            Handoffs = context.Handoffs
-        };
-    }
-
-    /// <summary>Regole di intake verificate dall'host sui fatti del <c>get_deal</c> (§5, D22).</summary>
-    internal static bool IntakeRejects(DealDto? deal) =>
-        deal is not null
-        && (deal.Stage != "ClosedWon"
-            || !string.Equals(deal.Currency, "EUR", StringComparison.OrdinalIgnoreCase)
-            || deal.LineItems.Count == 0
-            || deal.LineItems.Sum(l => l.Quantity * l.UnitPrice) != deal.Amount);
-
-    private async Task WriteCrmOutcomeAsync(
-        IReadOnlyList<AgentTool> tools, DealRunContext context, DealStatus status, string note, CancellationToken cancellationToken)
-    {
-        var scope = new AgentScope("Host", new HashSet<string> { AgentToolNames.UpdateDeal });
-        var updateDeal = new GuardedToolFunction(tools.Single(t => t.QualifiedName == AgentToolNames.UpdateDeal), context, scope);
-
-        var arguments = new AIFunctionArguments
-        {
-            ["dealId"] = context.DealId,
-            ["status"] = status.ToString(),
-            ["note"] = note.Length > 1000 ? note[..1000] : note
-        };
-
-        await updateDeal.InvokeAsync(arguments, cancellationToken);
-
-        logger.LogInformation("Deal {DealId} segnato {DealOutcome} dall'orchestratore: {Note}", context.DealId, status, note);
-    }
-
-    private static WorkflowPhase PhaseOfAgent(string agentName) =>
-        agentName == WorkflowAgents.Intake.Name ? WorkflowPhase.Intake
-        : agentName == WorkflowAgents.Fulfillment.Name ? WorkflowPhase.Fulfillment
-        : WorkflowPhase.Order;
-
-    private static WorkflowPhase PhaseOf(DealStatus status) => status switch
-    {
-        DealStatus.OrderCreated => WorkflowPhase.Completed,
-        DealStatus.Discarded => WorkflowPhase.Discarded,
-        _ => WorkflowPhase.Failed
-    };
 }

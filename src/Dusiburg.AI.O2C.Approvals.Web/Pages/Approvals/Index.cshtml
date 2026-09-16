@@ -1,0 +1,75 @@
+@page "/approvals"
+@using Dusiburg.AI.O2C.Shared.Contracts.Approvals
+@model Dusiburg.AI.O2C.Approvals.Web.Pages.Approvals.IndexModel
+@{
+    ViewData["Title"] = "Approvazioni";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Approvazioni</h1>
+    <div>
+        <span class="text-muted me-3">Approvatore: <code>@Model.Approver</code></span>
+        @if (Model.ShowAll)
+        {
+            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index">Solo pendenti</a>
+        }
+        else
+        {
+            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index" asp-route-all="true">Tutte</a>
+        }
+    </div>
+</div>
+
+@if (Model.Requests.Count == 0)
+{
+    <p class="text-muted">Nessuna richiesta @(Model.ShowAll ? "registrata" : "in attesa di decisione").</p>
+}
+else
+{
+    <table class="table table-hover align-middle">
+        <thead>
+            <tr>
+                <th>Deal</th>
+                <th>Azienda</th>
+                <th class="text-end">Totale</th>
+                <th>Motivi</th>
+                <th>Stato</th>
+                <th>Richiesta</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var request in Model.Requests)
+            {
+                <tr>
+                    <td><code>@request.Summary.DealId</code></td>
+                    <td>@request.Payload.CompanyName</td>
+                    <td class="text-end">@request.Summary.Total.ToString("N2") €</td>
+                    <td>
+                        @foreach (var reason in request.Summary.Reasons)
+                        {
+                            <span class="badge text-bg-warning me-1">@reason</span>
+                        }
+                    </td>
+                    <td>
+                        <span class="badge @StatusClass(request.Summary.Status)">@request.Summary.Status</span>
+                    </td>
+                    <td>@request.Summary.RequestedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm")</td>
+                    <td class="text-end">
+                        <a class="btn btn-primary btn-sm" asp-page="/Approvals/Details" asp-route-id="@request.Summary.ApprovalId">Apri</a>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+@functions {
+    private static string StatusClass(ApprovalStatus status) => status switch
+    {
+        ApprovalStatus.Pending => "text-bg-secondary",
+        ApprovalStatus.Approved => "text-bg-success",
+        ApprovalStatus.Rejected => "text-bg-danger",
+        _ => "text-bg-dark"
+    };
+}

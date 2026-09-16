@@ -1,7 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
   <ItemGroup>
+    <PackageReference Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" />
+    <PackageReference Include="Aspire.RabbitMQ.Client" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Orchestration.Data\Dusiburg.AI.O2C.Orchestration.Data.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dusiburg.AI.O2C.Orchestrator.Tests" />
   </ItemGroup>
 
 </Project>

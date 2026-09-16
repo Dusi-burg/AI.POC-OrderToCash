@@ -5,7 +5,6 @@ using Dusiburg.AI.O2C.Orchestrator.Tools;
 using Dusiburg.AI.O2C.Orchestrator.Workflow;
 using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Microsoft.Extensions.AI;
-using Microsoft.Extensions.Logging.Abstractions;
 using static Dusiburg.AI.O2C.Orchestrator.Tests.Support.AgentScriptChatClient;
 
 namespace Dusiburg.AI.O2C.Orchestrator.Tests.Workflow;
@@ -174,7 +173,7 @@ public class DealWorkflowRunnerTests
         var deal = FakeO2CTools.Deal with { Stage = stage, Currency = currency, Amount = amount };
 
         //SUT
-        Assert.That(DealWorkflowRunner.IntakeRejects(deal), Is.EqualTo(rejected));
+        Assert.That(DealWorkflowEngine.IntakeRejects(deal), Is.EqualTo(rejected));
     }
 
     [Test]
@@ -192,7 +191,7 @@ public class DealWorkflowRunnerTests
     }
 
     private static DealWorkflowRunner CreateRunner(IChatClient chat, FakeO2CTools tools, RecordingWorkflowStateStore store) =>
-        new(new ScriptedModelClientFactory(chat), new InMemoryToolCatalog(tools.All()), store, NullLogger<DealWorkflowRunner>.Instance);
+        WorkflowTestHost.CreateRunner(chat, tools, store, new RecordingApprovalStore(store));
 
     private static ChatResponse Call(string callId, string toolName, Dictionary<string, object?> arguments) =>
         new(new ChatMessage(ChatRole.Assistant, [new FunctionCallContent(callId, toolName, arguments)]));

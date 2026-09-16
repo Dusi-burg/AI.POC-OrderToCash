@@ -76,7 +76,8 @@ internal sealed class OrderService(ErpDbContext db, TimeProvider timeProvider, I
                 order.ExternalRef,
                 order.IdempotencyKey,
                 order.CreatedAt,
-                order.Lines.OrderBy(l => l.Id).Select(l => new OrderLineDto(l.Id, l.Product.Sku, l.Quantity, l.UnitPrice)).ToList());
+                order.Lines.OrderBy(l => l.Id).Select(l => new OrderLineDto(l.Id, l.Product.Sku, l.Quantity, l.UnitPrice)).ToList(),
+                order.BackorderNote);
     }
 
     private async Task<CreateOrderResult> CreateOnceAsync(CreateOrderRequest request, CancellationToken cancellationToken)
@@ -118,6 +119,9 @@ internal sealed class OrderService(ErpDbContext db, TimeProvider timeProvider, I
 
         var allAvailable = requested.All(r => r.Product.StockLevel is { } stock && stock.OnHand - stock.Reserved >= r.Quantity);
 
+        // Cosa manca, prima di riservare: la riserva viene fatta comunque (D21), quindi dopo non sarebbe più ricavabile.
+        var backorderNote = BackorderNote(requested);
+
         await using var transaction = await db.Database.BeginTransactionAsync(cancellationToken);
 
         var sequence = await db.Database
@@ -134,6 +138,7 @@ internal sealed class OrderService(ErpDbContext db, TimeProvider timeProvider, I
             Status = allAvailable ? OrderStatus.Confirmed : OrderStatus.Backorder,
             ExternalRef = request.ExternalRef,
             IdempotencyKey = request.IdempotencyKey,
+            BackorderNote = backorderNote,
             CreatedAt = createdAt,
             Lines = request.Lines
                 .Select(l => new OrderLine { ProductId = products[l.Sku].Id, Quantity = l.Quantity, UnitPrice = l.UnitPrice })
@@ -160,14 +165,29 @@ internal sealed class OrderService(ErpDbContext db, TimeProvider timeProvider, I
 
         return new CreateOrderResult(
             CreateOrderOutcome.Created,
-            new CreateOrderResponse(order.PublicId, order.OrderNumber, order.Total, order.Status));
+            new CreateOrderResponse(order.PublicId, order.OrderNumber, order.Total, order.Status, order.BackorderNote));
+    }
+
+    /// <summary>
+    /// Righe da approvvigionare, in chiaro: quantità richiesta meno quella davvero disponibile
+    /// (<c>OnHand − Reserved</c>, mai negativa). <c>null</c> se l'ordine è interamente coperto.
+    /// </summary>
+    private static string? BackorderNote(IReadOnlyList<(Product Product, int Quantity)> requested)
+    {
+        var missing = requested
+            .Select(r => (r.Product, Shortfall: r.Quantity - Math.Max(0, (r.Product.StockLevel?.OnHand ?? 0) - (r.Product.StockLevel?.Reserved ?? 0))))
+            .Where(r => r.Shortfall > 0)
+            .Select(r => string.Create(CultureInfo.InvariantCulture, $"{r.Product.Sku}: {r.Shortfall} {r.Product.Uom} da ordinare"))
+            .ToList();
+
+        return missing.Count == 0 ? null : string.Join("; ", missing);
     }
 
     private async Task<CreateOrderResponse?> FindByKeyAsync(string idempotencyKey, CancellationToken cancellationToken) =>
         await db.Orders
             .AsNoTracking()
             .Where(o => o.IdempotencyKey == idempotencyKey)
-            .Select(o => new CreateOrderResponse(o.PublicId, o.OrderNumber, o.Total, o.Status))
+            .Select(o => new CreateOrderResponse(o.PublicId, o.OrderNumber, o.Total, o.Status, o.BackorderNote))
             .SingleOrDefaultAsync(cancellationToken);
 
     private static string? Validate(CreateOrderRequest request)

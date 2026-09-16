@@ -38,7 +38,7 @@ var crmMcp = builder.AddProject<Projects.Dusiburg_AI_O2C_Crm_Mcp>("crm-mcp")
     .WithEnvironment("CRM_MCP_API_KEY", crmMcpApiKey)
     .WithHttpHealthCheck("/health");
 
-builder.AddProject<Projects.Dusiburg_AI_O2C_Orchestrator>("orchestrator")
+var orchestrator = builder.AddProject<Projects.Dusiburg_AI_O2C_Orchestrator>("orchestrator")
     .WithReference(sql)
     .WithReference(rabbitmq)
     .WithReference(erpMcp)
@@ -47,9 +47,46 @@ builder.AddProject<Projects.Dusiburg_AI_O2C_Orchestrator>("orchestrator")
     .WithEnvironment("CRM_MCP_API_KEY", crmMcpApiKey)
     .WithEnvironment("ANTHROPIC_API_KEY", anthropicApiKey);
 
-builder.AddProject<Projects.Dusiburg_AI_O2C_Approvals_Web>("approvals-web")
+// Manopole della demo (Fase 5): si impostano sull'AppHost — riga di comando, user-secrets o variabili d'ambiente —
+// e arrivano al servizio che le legge. Senza valore vale il default del codice.
+orchestrator.WithConfigurationEnvironment(
+    builder,
+    "MODEL_PROVIDER",
+    "ANTHROPIC_MODEL",
+    "OLLAMA_MODEL",
+    "OLLAMA_ENDPOINT",
+    "O2C_AGENT_MODE",
+    "APPROVAL_THRESHOLD_EUR",
+    "APPROVAL_TIMEOUT_HOURS",
+    "APPROVAL_SWEEP_MINUTES");
+
+var approvals = builder.AddProject<Projects.Dusiburg_AI_O2C_Approvals_Web>("approvals-web")
     .WithReference(sql)
     .WithReference(rabbitmq)
     .WithHttpHealthCheck("/health");
 
+approvals.WithConfigurationEnvironment(builder, "Approvals__ApproverUpn", "Approvals__CrmDevBaseUrl");
+
 builder.Build().Run();
+
+internal static class AppHostExtensions
+{
+    /// <summary>
+    /// Inoltra al servizio le impostazioni presenti nella configurazione dell'AppHost, saltando quelle non valorizzate:
+    /// così una variabile della demo si imposta in un solo posto e non va replicata in ogni progetto.
+    /// </summary>
+    public static IResourceBuilder<ProjectResource> WithConfigurationEnvironment(
+        this IResourceBuilder<ProjectResource> resource, IDistributedApplicationBuilder builder, params string[] names)
+    {
+        foreach (var name in names)
+        {
+            // Nelle variabili d'ambiente la sezione si scrive con il doppio underscore; nella configurazione con i due punti.
+            if (builder.Configuration[name.Replace("__", ":", StringComparison.Ordinal)] is { Length: > 0 } value)
+            {
+                resource.WithEnvironment(name, value);
+            }
+        }
+
+        return resource;
+    }
+}

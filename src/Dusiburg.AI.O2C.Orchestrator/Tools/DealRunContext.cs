@@ -16,6 +16,24 @@ public sealed record AgentVerdict(string Agent, DealStatus Status, string Reason
 public sealed record AgentScope(string AgentName, IReadOnlySet<string> AllowedTools);
 
 /// <summary>
+/// Fatti del run serializzati in <c>WorkflowState.StateJson</c>. È anche il formato da cui il contesto si ricostruisce
+/// quando il workflow riprende dopo un'approvazione, in un processo che non ha mai visto quel run (Fase 5).
+/// </summary>
+public sealed record DealRunSnapshot(
+    string DealId,
+    string CorrelationId,
+    DealDto? Deal,
+    CompanyDto? Company,
+    IReadOnlyList<StockCheckDto> Stock,
+    CustomerDto? Customer,
+    bool CustomerCreatedInThisRun,
+    CreateOrderResponse? Order,
+    DealStatus? CrmStatus,
+    AgentVerdict? Verdict,
+    IReadOnlyList<HandoffRecord> Handoffs,
+    IReadOnlyList<ToolCallRecord> ToolCalls);
+
+/// <summary>
 /// Stato di un run su un deal (3.3, 4.2): i fatti arrivano dai risultati reali dei tool, non dai riassunti del modello.
 /// Nel workflow a tre agenti è il contesto trasferito fra gli agenti e il contenuto di <c>WorkflowState.StateJson</c>.
 /// </summary>
@@ -41,7 +59,12 @@ public sealed class DealRunContext(string dealId, string correlationId, string a
 
     public CompanyDto? Company { get; private set; }
 
-    public int? CustomerId { get; private set; }
+    public CustomerDto? Customer { get; private set; }
+
+    public int? CustomerId => Customer?.CustomerId;
+
+    /// <summary>Il cliente ERP è stato creato durante questo run: è uno dei motivi di approvazione di §7 (G5.2).</summary>
+    public bool CustomerCreatedInThisRun { get; private set; }
 
     public CreateOrderResponse? Order { get; private set; }
 
@@ -86,24 +109,53 @@ public sealed class DealRunContext(string dealId, string correlationId, string a
     }
 
     /// <summary>Fatti del run in JSON, per <c>WorkflowState.StateJson</c> e per i log.</summary>
-    public string ToStateJson()
+    public string ToStateJson() => JsonSerializer.Serialize(ToSnapshot(), AgentJson.Options);
+
+    public DealRunSnapshot ToSnapshot()
     {
         lock (_gate)
         {
-            return JsonSerializer.Serialize(new
-            {
-                DealId,
-                CorrelationId,
-                Deal,
-                Company,
-                Stock = _stock,
-                CustomerId,
-                Order,
-                CrmStatus,
-                Verdict,
-                Handoffs = _handoffs,
-                ToolCalls = _calls
-            }, AgentJson.Options);
+            return new DealRunSnapshot(
+                DealId, CorrelationId, Deal, Company, [.. _stock], Customer, CustomerCreatedInThisRun,
+                Order, CrmStatus, Verdict, [.. _handoffs], [.. _calls]);
+        }
+    }
+
+    /// <summary>
+    /// Ricostruisce il contesto di un run sospeso dai fatti persistiti (Fase 5): il processo che riprende il workflow
+    /// non ha visto le chiamate ai tool, ma la guardia e l'esito hanno bisogno degli stessi fatti di prima.
+    /// </summary>
+    public static DealRunContext Restore(DealRunSnapshot snapshot, string agentName, IReadOnlySet<string> allowedTools)
+    {
+        var context = new DealRunContext(snapshot.DealId, snapshot.CorrelationId, agentName, allowedTools)
+        {
+            Deal = snapshot.Deal,
+            Company = snapshot.Company,
+            Customer = snapshot.Customer,
+            CustomerCreatedInThisRun = snapshot.CustomerCreatedInThisRun,
+            Order = snapshot.Order,
+            CrmStatus = snapshot.CrmStatus,
+            Verdict = snapshot.Verdict
+        };
+
+        context._stock.AddRange(snapshot.Stock);
+        context._handoffs.AddRange(snapshot.Handoffs);
+        context._calls.AddRange(snapshot.ToolCalls);
+
+        return context;
+    }
+
+    /// <summary>
+    /// Sostituisce le verifiche di giacenza con quelle fatte dall'host sulle righe proposte: sono le uniche su cui la
+    /// policy decide, perché sono le sole di cui si conosce la quantità richiesta. Le chiamate degli agenti restano
+    /// visibili in <see cref="ToolCalls"/>.
+    /// </summary>
+    internal void ReplaceStock(IEnumerable<StockCheckDto> checks)
+    {
+        lock (_gate)
+        {
+            _stock.Clear();
+            _stock.AddRange(checks);
         }
     }
 
@@ -150,10 +202,19 @@ public sealed class DealRunContext(string dealId, string correlationId, string a
                         _stock.Add(stock);
                         break;
                     case AgentToolNames.GetCustomer when data.Deserialize<GetCustomerResponse>(AgentJson.Options)?.Customer is { } customer:
-                        CustomerId = customer.CustomerId;
+                        Customer = customer;
+                        CustomerCreatedInThisRun = false;
                         break;
                     case AgentToolNames.CreateCustomer when data.Deserialize<CreateCustomerResponse>(AgentJson.Options) is { } created:
-                        CustomerId = created.CustomerId;
+                        // La risposta porta solo l'id: il resto dell'anagrafica è quello appena inviato all'ERP.
+                        Customer = new CustomerDto(
+                            created.CustomerId,
+                            ReadText(arguments, "name") ?? Company?.Name ?? string.Empty,
+                            ReadText(arguments, "vatNumber") ?? Company?.VatNumber ?? string.Empty,
+                            ReadText(arguments, "email") ?? Company?.Email ?? string.Empty,
+                            CreditLimit: 0m,
+                            IsBlocked: false);
+                        CustomerCreatedInThisRun = true;
                         break;
                     case AgentToolNames.CreateOrder:
                         Order = data.Deserialize<CreateOrderResponse>(AgentJson.Options);

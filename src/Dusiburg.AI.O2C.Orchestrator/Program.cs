@@ -2,11 +2,13 @@ using Dusiburg.AI.O2C.Orchestrator;
 using Dusiburg.AI.O2C.Orchestrator.Agents;
 using Dusiburg.AI.O2C.Orchestrator.Cli;
 using Dusiburg.AI.O2C.Orchestrator.Configuration;
+using Dusiburg.AI.O2C.Orchestrator.Governance;
 using Dusiburg.AI.O2C.Orchestrator.Messaging;
 using Dusiburg.AI.O2C.Orchestrator.Model;
 using Dusiburg.AI.O2C.Orchestrator.Tools;
 using Dusiburg.AI.O2C.Orchestrator.Workflow;
 using Dusiburg.AI.O2C.Orchestration.Data;
+using Microsoft.Agents.AI.Workflows;
 using Microsoft.Extensions.Logging.Console;
 
 // Con argomenti è la riga di comando (G3.4, es. "process --deal D-1001"); senza argomenti è il worker avviato dall'AppHost.
@@ -37,16 +39,30 @@ builder.Services.AddSingleton<McpToolCatalog>();
 builder.Services.AddSingleton<IToolCatalog>(services => services.GetRequiredService<McpToolCatalog>());
 builder.Services.AddSingleton<IWorkflowStateStore, WorkflowStateStore>();
 builder.Services.AddSingleton<SingleOrderAgent>();
+
+// Approvazione umana (Fase 5): policy deterministica, richieste persistite e checkpoint del workflow su SQL (D16).
+builder.Services.AddSingleton<ApprovalPolicy>();
+builder.Services.AddSingleton<ApprovalGate>();
+builder.Services.AddSingleton<IApprovalStore, ApprovalStore>();
+builder.Services.AddSingleton<SqlCheckpointStore>();
+builder.Services.AddSingleton(services => CheckpointManager.CreateJson(services.GetRequiredService<SqlCheckpointStore>()));
+
+builder.Services.AddSingleton<DealWorkflowEngine>();
 builder.Services.AddSingleton<DealWorkflowRunner>();
+builder.Services.AddSingleton<ApprovalResumeRunner>();
 builder.Services.AddSingleton<DealProcessor>();
 
 if (!cliMode)
 {
     builder.Services.AddHostedService<HeartbeatService>();
 
-    // Trigger deal-closed-won (4.5, D46): solo nel worker; la CLI non apre connessioni al broker.
+    // Trigger deal-closed-won (4.5, D46) e decisioni di approvazione (5.5): solo nel worker; la CLI non apre connessioni al broker.
     builder.AddRabbitMQClient("rabbitmq");
     builder.Services.AddHostedService<DealClosedWonConsumer>();
+    builder.Services.AddHostedService<ApprovalDecidedConsumer>();
+
+    // Riconciliazione e scadenza: all'avvio e a intervallo regolare (G5.3, 5.6).
+    builder.Services.AddHostedService<ApprovalSweepService>();
 }
 
 using var host = builder.Build();

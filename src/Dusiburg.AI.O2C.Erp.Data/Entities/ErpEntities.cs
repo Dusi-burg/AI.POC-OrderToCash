@@ -87,6 +87,13 @@ public sealed class Order
     /// <summary>Univoca: impedisce ordini doppi a fronte di retry (§8, §12).</summary>
     public required string IdempotencyKey { get; set; }
 
+    /// <summary>
+    /// Per un ordine in backorder, cosa manca e in che quantità al momento della creazione
+    /// (es. <c>IND-MOT-003: 2 PZ da ordinare</c>). Si calcola una volta sola e si conserva: dopo la riserva la
+    /// giacenza non permette più di ricavarlo, e la risposta idempotente deve restare identica alla prima.
+    /// </summary>
+    public string? BackorderNote { get; set; }
+
     public DateTimeOffset CreatedAt { get; set; }
 
     public List<OrderLine> Lines { get; set; } = [];
