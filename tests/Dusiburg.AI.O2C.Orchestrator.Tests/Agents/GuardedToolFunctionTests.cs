@@ -100,6 +100,61 @@ public class GuardedToolFunctionTests
         Assert.That(context.ToolCalls.Single().Outcome, Is.EqualTo("error:UNAUTHORIZED"));
     }
 
+    [TestCase(AgentToolNames.UpdateDeal)]
+    [TestCase(AgentToolNames.CreateOrder)]
+    [TestCase(AgentToolNames.CreateCustomer)]
+    public async Task WriteTool_AfterAStopVerdict_IsRejectedForAgentsButNotForTheHost(string tool)
+    {
+        //SETUP
+        var context = new DealRunContext("D-1001", "corr-guard-test", AgentScope.HostName, new HashSet<string>());
+        var agentScope = new AgentScope("OrderAgent", new HashSet<string> { tool });
+        var hostScope = new AgentScope(AgentScope.HostName, new HashSet<string> { tool });
+        var inner = _tools.All().Single(t => t.QualifiedName == tool);
+
+        await new GuardedToolFunction(_tools.All().Single(t => t.QualifiedName == AgentToolNames.GetDeal), context, hostScope with
+        {
+            AllowedTools = new HashSet<string> { AgentToolNames.GetDeal }
+        }).InvokeAsync(new AIFunctionArguments { ["dealId"] = "D-1001" }, CancellationToken);
+
+        await WorkflowAgents.CreateVerdictTool(WorkflowAgents.Fulfillment, context)
+            .InvokeAsync(new AIFunctionArguments { ["reason"] = "SKU inesistente" }, CancellationToken);
+
+        var arguments = new AIFunctionArguments
+        {
+            ["dealId"] = "D-1001",
+            ["status"] = "Failed",
+            ["customerId"] = 1,
+            ["lines"] = new[] { new { sku = "IND-BRG-001", quantity = 1, unitPrice = 12m } },
+            ["name"] = "Nuovo cliente",
+            ["vatNumber"] = "IT00000000000",
+            ["email"] = "a@b.it",
+            ["address"] = "Via Roma 1"
+        };
+
+        //SUT
+        var agentResult = await new GuardedToolFunction(inner, context, agentScope).InvokeAsync(arguments, CancellationToken);
+        var hostResult = await new GuardedToolFunction(inner, context, hostScope).InvokeAsync(arguments, CancellationToken);
+
+        Assert.That(ErrorCode(agentResult), Is.EqualTo(ToolErrorCodes.Conflict));
+        Assert.That(ErrorCode(hostResult), Is.Null, "l'host scrive l'esito anche dopo l'arresto");
+        Assert.That(_tools.CreateOrderCalls + _tools.CreateCustomerCalls + _tools.UpdatedStatuses.Count, Is.EqualTo(1),
+            "solo la chiamata dell'host raggiunge il tool");
+    }
+
+    [Test]
+    public async Task ReadTool_AfterAStopVerdict_IsStillAllowed()
+    {
+        //SETUP
+        await WorkflowAgents.CreateVerdictTool(WorkflowAgents.Fulfillment, _context)
+            .InvokeAsync(new AIFunctionArguments { ["reason"] = "SKU inesistente" }, CancellationToken);
+
+        //SUT
+        var result = await Guard(AgentToolNames.GetDeal).InvokeAsync(new AIFunctionArguments { ["dealId"] = "D-1001" }, CancellationToken);
+
+        Assert.That(ErrorCode(result), Is.Null);
+        Assert.That(_context.Deal, Is.Not.Null);
+    }
+
     [Test]
     public async Task McpErrorResult_IsRecordedAsErrorAndNotAsFact()
     {
@@ -147,6 +202,9 @@ public class GuardedToolFunctionTests
     private static IEnumerable<string> PropertyNames(JsonElement schema) =>
         schema.GetProperty("properties").EnumerateObject().Select(p => p.Name);
 
+    /// <summary>Codice dell'envelope di errore; <c>null</c> per un risultato positivo.</summary>
     private static string? ErrorCode(object? result) =>
-        ((JsonElement)result!).GetProperty("error").GetProperty("code").GetString();
+        result is JsonElement { ValueKind: JsonValueKind.Object } json && json.TryGetProperty("error", out var error)
+            ? error.GetProperty("code").GetString()
+            : null;
 }

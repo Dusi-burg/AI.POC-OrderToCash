@@ -151,6 +151,17 @@ public sealed class DealWorkflowEngine(
 
         var verdict = await approvalGate.EvaluateAsync(approval, context, tools, cancellationToken);
 
+        if (verdict.Stop is { } stop)
+        {
+            // Arresto deciso dall'host (D61): il verdetto rende il workflow terminale e la chiamata si rifiuta, così
+            // create_order non parte. L'esito Failed lo scrive CompleteAsync, come per gli altri arresti.
+            context.RecordVerdict(stop);
+
+            await run.SendResponseAsync(request.CreateResponse(approval.CreateResponse(approved: false, stop.Reason)));
+
+            return WorkflowPumpResult.Ran;
+        }
+
         if (verdict.AutoApprove)
         {
             await run.SendResponseAsync(request.CreateResponse(approval.CreateResponse(approved: true, "Approvato dalla policy.")));
@@ -320,7 +331,7 @@ public sealed class DealWorkflowEngine(
     public async Task WriteCrmOutcomeAsync(
         IReadOnlyList<AgentTool> tools, DealRunContext context, DealStatus status, string note, CancellationToken cancellationToken)
     {
-        var scope = new AgentScope("Host", new HashSet<string> { AgentToolNames.UpdateDeal });
+        var scope = new AgentScope(AgentScope.HostName, new HashSet<string> { AgentToolNames.UpdateDeal });
         var updateDeal = new GuardedToolFunction(tools.Single(t => t.QualifiedName == AgentToolNames.UpdateDeal), context, scope);
 
         var arguments = new AIFunctionArguments

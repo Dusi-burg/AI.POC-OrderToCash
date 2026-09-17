@@ -18,6 +18,10 @@ public sealed class GuardedToolFunction : DelegatingAIFunction
     /// <summary>Argomenti di <c>create_order</c> nascosti al modello e iniettati dal codice.</summary>
     public static readonly IReadOnlyList<string> InjectedCreateOrderArguments = ["idempotencyKey", "externalRef"];
 
+    /// <summary>Tool che scrivono su ERP o CRM: dopo un verdetto di arresto restano riservati all'host.</summary>
+    private static readonly IReadOnlySet<string> WriteTools =
+        new HashSet<string> { AgentToolNames.CreateCustomer, AgentToolNames.CreateOrder, AgentToolNames.UpdateDeal };
+
     private readonly AgentTool _tool;
     private readonly DealRunContext _context;
     private readonly AgentScope _scope;
@@ -76,6 +80,13 @@ public sealed class GuardedToolFunction : DelegatingAIFunction
         if (!_scope.AllowedTools.Contains(QualifiedName))
         {
             return Reject(ToolErrorCodes.Unauthorized, $"Tool '{Name}' is not allowed for agent {_scope.AgentName}.");
+        }
+
+        // Dopo un verdetto di arresto gli agenti non scrivono più: l'esito lo scrive l'host, e una scrittura del modello
+        // (es. update_deal OrderCreated dopo un create_order rifiutato) lascerebbe sul CRM uno stato falso.
+        if (_context.Verdict is not null && !_scope.IsHost && WriteTools.Contains(QualifiedName))
+        {
+            return Reject(ToolErrorCodes.Conflict, "The workflow has already been stopped: no further writes are allowed.");
         }
 
         if (QualifiedName == AgentToolNames.CreateOrder)

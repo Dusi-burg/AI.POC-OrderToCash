@@ -42,7 +42,7 @@ public sealed class DealWorkflowRunner(
         string dealId, string correlationId, int? dealRevision, bool reprocess, CancellationToken cancellationToken)
     {
         var tools = await engine.GetToolsAsync(cancellationToken);
-        var probe = new DealRunContext(dealId, correlationId, "Host", new HashSet<string>());
+        var probe = new DealRunContext(dealId, correlationId, AgentScope.HostName, new HashSet<string>());
         var revision = dealRevision ?? await ReadRevisionAsync(tools, probe, cancellationToken);
 
         if (!await stateStore.TryStartAsync(correlationId, dealId, revision, reprocess, cancellationToken))
@@ -52,7 +52,7 @@ public sealed class DealWorkflowRunner(
             return null;
         }
 
-        var context = new DealRunContext(dealId, correlationId, "Host", new HashSet<string>());
+        var context = new DealRunContext(dealId, correlationId, AgentScope.HostName, new HashSet<string>());
 
         using var setup = await engine.BuildAsync(context, cancellationToken);
 

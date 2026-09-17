@@ -87,7 +87,7 @@ public sealed class ApprovalResumeRunner(
         var snapshot = await approvals.GetSnapshotAsync(approval.CorrelationId, cancellationToken)
             ?? new DealRunSnapshot(approval.DealId, approval.CorrelationId, null, null, [], null, false, null, null, null, [], []);
 
-        var context = DealRunContext.Restore(snapshot, "Host", new HashSet<string>());
+        var context = DealRunContext.Restore(snapshot, AgentScope.HostName, new HashSet<string>());
 
         return approval.Status == ApprovalStatus.Approved
             ? await ApproveAsync(approval, context, cancellationToken)

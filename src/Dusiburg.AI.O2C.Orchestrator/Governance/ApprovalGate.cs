@@ -1,7 +1,9 @@
 using System.Text.Json;
 using Dusiburg.AI.O2C.Orchestrator.Tools;
 using Dusiburg.AI.O2C.Shared.Contracts.Approvals;
+using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Dusiburg.AI.O2C.Shared.Contracts.Erp;
+using Dusiburg.AI.O2C.Shared.Errors;
 using Dusiburg.AI.O2C.Shared.Idempotency;
 using Microsoft.Extensions.AI;
 
@@ -9,11 +11,14 @@ namespace Dusiburg.AI.O2C.Orchestrator.Governance;
 
 /// <summary>
 /// Cosa fare con una richiesta di approvazione che il framework ha esposto: proseguire subito (la policy non chiede
-/// nulla, oppure il tool non è sensibile) o sospendere il workflow con la proposta congelata.
+/// nulla, oppure il tool non è sensibile), sospendere il workflow con la proposta congelata, oppure fermarlo senza
+/// approvazione quando <see cref="Stop"/> è valorizzato (SKU inesistente in ERP, D20).
 /// </summary>
-public sealed record ApprovalGateVerdict(bool AutoApprove, ApprovalPayload? Payload, IReadOnlyList<ApprovalReason> Reasons)
+public sealed record ApprovalGateVerdict(bool AutoApprove, ApprovalPayload? Payload, IReadOnlyList<ApprovalReason> Reasons, AgentVerdict? Stop = null)
 {
     public static ApprovalGateVerdict Continue { get; } = new(true, null, []);
+
+    public static ApprovalGateVerdict Stopped(AgentVerdict stop) => new(false, null, [], stop);
 }
 
 /// <summary>
@@ -35,7 +40,7 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
     public const string SensitiveToolName = ErpToolNames.CreateOrder;
 
     /// <summary>Ambito dell'host per le verifiche che fa da sé.</summary>
-    private static readonly AgentScope HostScope = new("Host", new HashSet<string> { AgentToolNames.CheckStock });
+    private static readonly AgentScope HostScope = new(AgentScope.HostName, new HashSet<string> { AgentToolNames.CheckStock });
 
     public async Task<ApprovalGateVerdict> EvaluateAsync(
         ToolApprovalRequestContent request,
@@ -49,9 +54,21 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
         }
 
         var lines = ReadLines(call.Arguments);
-        var stock = await VerifyStockAsync(lines, context, tools, cancellationToken);
+        StockVerification verification = await VerifyStockAsync(lines, context, tools, cancellationToken);
+        IReadOnlyList<StockCheckDto> stock = verification.Checks;
 
         context.ReplaceStock(stock);
+
+        // D20: uno SKU che l'ERP non conosce non è una riga da approvare in backorder ma un ordine impossibile. Lo decide
+        // l'host sulla propria verifica, anche se l'agente non l'ha segnalato (D61).
+        if (verification.UnknownSkus.Count > 0)
+        {
+            string reason = $"SKU inesistenti in ERP: {string.Join(", ", verification.UnknownSkus)}. Ordine non proponibile, nessuna approvazione (D20).";
+
+            logger.LogWarning("Deal {DealId}: {Reason}", context.DealId, reason);
+
+            return ApprovalGateVerdict.Stopped(new AgentVerdict(AgentScope.HostName, DealStatus.Failed, reason));
+        }
 
         var decision = policy.Evaluate(new ApprovalContext(lines, stock, context.Customer, context.CustomerCreatedInThisRun));
 
@@ -64,10 +81,11 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
     }
 
     /// <summary>
-    /// Verifica di giacenza fatta dall'host su ogni riga proposta. Una verifica che non riesce non diventa una
-    /// disponibilità: viene trattata come riga non disponibile, così l'esito peggiore è un'approvazione in più.
+    /// Verifica di giacenza fatta dall'host su ogni riga proposta. Uno SKU che l'ERP non conosce (<c>NOT_FOUND</c>) finisce
+    /// fra gli SKU inesistenti; ogni altra verifica che non riesce non diventa una disponibilità: viene trattata come riga
+    /// non disponibile, così l'esito peggiore è un'approvazione in più.
     /// </summary>
-    private async Task<IReadOnlyList<StockCheckDto>> VerifyStockAsync(
+    private async Task<StockVerification> VerifyStockAsync(
         IReadOnlyList<OrderLineInput> lines,
         DealRunContext context,
         IReadOnlyList<AgentTool> tools,
@@ -75,6 +93,7 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
     {
         var checkStock = new GuardedToolFunction(tools.Single(t => t.QualifiedName == AgentToolNames.CheckStock), context, HostScope);
         var checks = new List<StockCheckDto>(lines.Count);
+        var unknownSkus = new List<string>();
 
         foreach (var line in lines)
         {
@@ -88,6 +107,14 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
                 continue;
             }
 
+            if (result.ErrorCode == ToolErrorCodes.NotFound)
+            {
+                unknownSkus.Add(line.Sku);
+                checks.Add(new StockCheckDto(line.Sku, Available: false, OnHand: 0, LeadTimeDays: 0));
+
+                continue;
+            }
+
             logger.LogWarning(
                 "Deal {DealId}: verifica di giacenza di {Sku} non riuscita ({ToolOutcome}): la riga conta come non disponibile",
                 context.DealId, line.Sku, result.ErrorCode);
@@ -95,8 +122,10 @@ public sealed class ApprovalGate(ApprovalPolicy policy, ILogger<ApprovalGate> lo
             checks.Add(new StockCheckDto(line.Sku, Available: false, OnHand: 0, LeadTimeDays: 0));
         }
 
-        return checks;
+        return new StockVerification(checks, unknownSkus);
     }
+
+    private sealed record StockVerification(IReadOnlyList<StockCheckDto> Checks, IReadOnlyList<string> UnknownSkus);
 
     private static StockCheckDto? Deserialize(JsonElement data)
     {

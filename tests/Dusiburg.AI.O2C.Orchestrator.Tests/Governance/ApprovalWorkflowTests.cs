@@ -270,6 +270,31 @@ public class ApprovalWorkflowTests
     }
 
     [Test]
+    public async Task ProcessAsync_ModelProposesAnUnknownSku_HostFailsWithoutApprovalAndWithoutOrder()
+    {
+        //SETUP: come D-1007 dal vivo — FulfillmentAgent non verifica, OrderAgent propone l'ordine con uno SKU che l'ERP non conosce.
+        _tools = new FakeO2CTools(unknownSku: "IND-BRG-001");
+        _chat = OrderScript(skipStockCheck: true);
+
+        //SUT
+        var result = await Runner(threshold: 10_000m).ProcessAsync("D-1001", _correlationId, dealRevision: 3, reprocess: true, CancellationToken);
+
+        Assert.That(result?.Status, Is.EqualTo(DealStatus.Failed), "uno SKU inesistente non è un backorder da approvare (D20)");
+        Assert.That(_approvals.Created, Is.Empty);
+        Assert.That(_tools.CreateOrderCalls, Is.Zero);
+        Assert.That(result!.Reasons, Has.Some.Contains("IND-BRG-001"));
+        Assert.That(result.ToolCalls.Where(c => c.Tool == AgentToolNames.CheckStock).Select(c => (c.Agent, c.Outcome)),
+            Is.EqualTo(new[] { (AgentScope.HostName, "error:NOT_FOUND") }));
+
+        // L'update_deal OrderCreated del copione non deve arrivare al CRM: se l'agente ci prova dopo il rifiuto la guardia
+        // lo respinge, e l'unico esito scritto è Failed.
+        Assert.That(result.ToolCalls.Where(c => c.Tool == AgentToolNames.UpdateDeal && c.Agent != AgentScope.HostName).Select(c => c.Outcome),
+            Has.None.EqualTo("ok"));
+        Assert.That(_tools.UpdatedStatuses, Is.EqualTo(new[] { DealStatus.Failed }));
+        Assert.That(_states.Updates[^1].Phase, Is.EqualTo(WorkflowPhase.Failed));
+    }
+
+    [Test]
     public async Task ResumeAsync_BackorderedOrder_ReportsWhatIsMissingOnTheDeal()
     {
         //SETUP

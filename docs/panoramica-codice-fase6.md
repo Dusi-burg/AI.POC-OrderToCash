@@ -118,7 +118,17 @@ In Development le Minimal API lanciano `BadHttpRequestException` quando il corpo
 
 Le UI si provano con `WebApplicationFactory` e uno `StubApiHandler` come handler primario del client: nessun database né broker.
 
-## 9. Limiti noti
+## 9. Correzione D61: SKU inesistente fermato dall'host
+
+Dal vivo, su D-1007, il modello locale non ha segnalato lo SKU `IND-SEN-999` e ha proposto l'ordine; `ApprovalGate` ha contato il `NOT_FOUND` della propria verifica come "riga non disponibile" e ha chiesto un'approvazione `InsufficientStock`. Ora:
+
+- `ApprovalGate.VerifyStockAsync` separa gli SKU inesistenti dagli altri errori; con almeno uno SKU inesistente `EvaluateAsync` restituisce `ApprovalGateVerdict.Stopped(...)`, un verdetto `Failed` dell'host (`AgentScope.HostName`).
+- `DealWorkflowEngine.HandleApprovalRequestAsync` registra il verdetto (il workflow diventa terminale) e **rifiuta** la chiamata: `create_order` non parte e non nasce nessuna richiesta. L'esito `Failed` lo scrive `CompleteAsync` sul CRM, come per gli altri arresti.
+- `GuardedToolFunction`: dopo un verdetto di arresto, `create_customer`, `create_order` e `update_deal` chiamati da un agente ricevono `CONFLICT`; l'host continua a poter scrivere.
+
+Test nuovi: `ProcessAsync_ModelProposesAnUnknownSku_HostFailsWithoutApprovalAndWithoutOrder` e i casi della guardia (totale **284**). Dal vivo D-1007 arriva a `Failed` in 36 s.
+
+## 10. Limiti noti
 
 - **Nessuna autenticazione** su UI e API utente (G6.5): accettato in locale, da risolvere in Fase 7 (G7.4, G7.7).
 - **Nessuna outbox** fra salvataggio dello stage e pubblicazione: un deal può restare vinto senza workflow finché qualcuno non ripubblica.

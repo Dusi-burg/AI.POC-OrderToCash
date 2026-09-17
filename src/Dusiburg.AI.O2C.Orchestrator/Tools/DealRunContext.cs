@@ -13,7 +13,13 @@ public sealed record HandoffRecord(string From, string To, string? Reason);
 public sealed record AgentVerdict(string Agent, DealStatus Status, string Reason);
 
 /// <summary>Agente che usa i tool: nome per telemetria e allow-list dei tool consentiti.</summary>
-public sealed record AgentScope(string AgentName, IReadOnlySet<string> AllowedTools);
+public sealed record AgentScope(string AgentName, IReadOnlySet<string> AllowedTools)
+{
+    /// <summary>Nome dell'ambito con cui l'orchestratore chiama i tool da sé (verifiche e scritture degli esiti).</summary>
+    public const string HostName = "Host";
+
+    public bool IsHost => AgentName == HostName;
+}
 
 /// <summary>
 /// Fatti del run serializzati in <c>WorkflowState.StateJson</c>. È anche il formato da cui il contesto si ricostruisce
