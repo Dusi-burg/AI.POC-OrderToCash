@@ -198,7 +198,7 @@ flowchart LR
 | Duplicato | `TryStartAsync` trova deal e revisione → ack senza workflow, log "duplicato" |
 | Errore | Copia ripubblicata con `x-retry-count` + ack dell'originale (gli header non si modificano con il nack); dopo 3 tentativi `reject` → dead-letter |
 | Messaggio illeggibile | `reject` diretto in dead-letter |
-| `IDealEventSource` | Interfaccia marcatore del consumer, punto di sostituzione per Service Bus (Fase 6) |
+| `IDealEventSource` | Interfaccia marcatore del consumer, punto di sostituzione per Service Bus (Fase 7) |
 
 La connessione arriva da `AddRabbitMQClient("rabbitmq")` (integrazione Aspire, D46). La CLI non apre connessioni al broker. In Development legge `ConnectionStrings:sql` (e `rabbitmq`) dagli user-secrets dell'AppHost come le API key.
 
@@ -293,4 +293,4 @@ Il consumer RabbitMQ e il publisher non hanno test automatici: sono verificati d
 | Nuovi tentativi e dead-letter | Implementati, non provati dal vivo (nessun errore transitorio nelle prove) | — |
 | Handoff e modelli piccoli | Misurati solo con Claude Haiku 4.5; Qwen locale non provato sul workflow a tre agenti | Da misurare se serve |
 | Approvazione | D-1002, D-1003, D-1004, D-1005, D-1008 creano l'ordine senza approvazione | **Fase 5** |
-| `IDealEventSource` | Solo marcatore | **Fase 6** (Service Bus) |
+| `IDealEventSource` | Solo marcatore | **Fase 7** (Service Bus) |

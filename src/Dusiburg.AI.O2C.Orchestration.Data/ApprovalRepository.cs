@@ -26,10 +26,14 @@ public sealed class ApprovalRepository(OrchestrationDbContext db, TimeProvider t
     public Task<ApprovalRequest?> FindAsync(Guid approvalId, CancellationToken cancellationToken) =>
         db.ApprovalRequests.SingleOrDefaultAsync(r => r.PublicId == approvalId, cancellationToken);
 
-    /// <summary>Richieste per l'elenco della UI, dalla più recente; con <paramref name="status"/> nullo le mostra tutte.</summary>
-    public Task<List<ApprovalRequest>> ListAsync(ApprovalStatus? status, CancellationToken cancellationToken) =>
+    /// <summary>
+    /// Richieste per l'elenco della UI, dalla più recente; con <paramref name="status"/> nullo le mostra tutte, con
+    /// <paramref name="dealId"/> solo quelle del deal (link da Crm.Web, G6.8).
+    /// </summary>
+    public Task<List<ApprovalRequest>> ListAsync(ApprovalStatus? status, string? dealId, CancellationToken cancellationToken) =>
         db.ApprovalRequests
             .Where(r => status == null || r.Status == status)
+            .Where(r => dealId == null || r.DealId == dealId)
             .OrderByDescending(r => r.RequestedAt)
             .ToListAsync(cancellationToken);
 

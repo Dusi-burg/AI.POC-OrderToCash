@@ -8,7 +8,7 @@ namespace Dusiburg.AI.O2C.Approvals.Web.Approvals;
 
 /// <summary>
 /// Annuncia una decisione all'orchestratore. È dietro un'interfaccia come <c>IDealEventSource</c> nell'orchestratore:
-/// in Fase 6 il broker cambia, e i test non hanno bisogno di un broker vero.
+/// in Fase 7 il broker cambia, e i test non hanno bisogno di un broker vero.
 /// </summary>
 public interface IApprovalDecisionPublisher
 {

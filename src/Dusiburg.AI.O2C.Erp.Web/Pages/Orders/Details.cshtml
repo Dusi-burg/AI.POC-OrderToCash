@@ -1,0 +1,90 @@
+@page "/orders/{orderNumber}"
+@using Dusiburg.AI.O2C.ServiceDefaults.Portal
+@using Microsoft.Extensions.Options
+@model Dusiburg.AI.O2C.Erp.Web.Pages.Orders.DetailsModel
+@inject IOptions<PortalLinks> PortalLinksOptions
+@{
+    var detail = Model.Detail;
+    var order = detail.Order;
+    var dealLink = PortalLinksOptions.Value.CrmDeal(order.ExternalRef);
+    ViewData["Title"] = $"Ordine {order.OrderNumber}";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">
+        Ordine @order.OrderNumber
+        <span class="badge @ErpPresentation.OrderStatusClass(order.Status) fs-6 align-middle" id="order-status">@order.Status</span>
+    </h1>
+    <a class="btn btn-outline-secondary btn-sm" asp-page="/Orders/Index">Tutti gli ordini</a>
+</div>
+
+@if (detail.BackorderNote is { Length: > 0 } backorderNote)
+{
+    <div class="alert alert-warning" id="backorder-note">
+        <strong>Backorder:</strong> @backorderNote
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-md-8">
+        <h2 class="h5">Righe</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th>Descrizione</th>
+                    <th class="text-end">Quantità</th>
+                    <th class="text-end">Prezzo</th>
+                    <th class="text-end">Totale riga</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in detail.Lines)
+                {
+                    <tr>
+                        <td><code>@line.Sku</code></td>
+                        <td>@line.Description</td>
+                        <td class="text-end">@line.Quantity @line.Uom</td>
+                        <td class="text-end">@line.UnitPrice.ToString("N2") €</td>
+                        <td class="text-end">@line.LineTotal.ToString("N2") €</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="4" class="text-end">Totale</td>
+                    <td class="text-end">@order.Total.ToString("N2") €</td>
+                </tr>
+            </tfoot>
+        </table>
+    </div>
+
+    <div class="col-md-4">
+        <h2 class="h5">Dati dell'ordine</h2>
+        <dl class="row">
+            <dt class="col-5">Cliente</dt>
+            <dd class="col-7"><a asp-page="/Customers/Details" asp-route-customerId="@order.CustomerId">@order.CustomerName</a></dd>
+
+            <dt class="col-5">Deal CRM</dt>
+            <dd class="col-7">
+                @if (dealLink is not null)
+                {
+                    <a href="@dealLink" id="deal-link">@order.ExternalRef</a>
+                }
+                else
+                {
+                    @order.ExternalRef
+                }
+            </dd>
+
+            <dt class="col-5">Ricevuto</dt>
+            <dd class="col-7">@order.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")</dd>
+
+            <dt class="col-5">Id pubblico</dt>
+            <dd class="col-7"><code>@order.OrderId</code></dd>
+
+            <dt class="col-5">Chiave di idempotenza</dt>
+            <dd class="col-7"><code>@detail.IdempotencyKey</code></dd>
+        </dl>
+    </div>
+</div>

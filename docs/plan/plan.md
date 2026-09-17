@@ -22,7 +22,8 @@
 | 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ✅ Completata (2026-09-15) |
 | 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ✅ Completata (2026-09-15) |
 | 5 | [fase-5-human-in-the-loop.md](fase-5-human-in-the-loop.md) | Approvazione, sospensione e ripresa | ✅ Completata (2026-09-16) |
-| 6 | [fase-6-deploy-osservabilita.md](fase-6-deploy-osservabilita.md) | Azure (outline, da dettagliare) | ⬜ Outline |
+| 6 | [fase-6-ui-crm-erp.md](fase-6-ui-crm-erp.md) | UI web di CRM (deal, aziende, chiusura vinto/perso) ed ERP (clienti, magazzino, ordini, sola lettura) | ✅ Completata (2026-09-17) |
+| 7 | [fase-7-deploy-osservabilita.md](fase-7-deploy-osservabilita.md) | Azure (outline, da dettagliare) — era la Fase 6 (D57) | ⬜ Outline |
 
 Legenda: ⬜ da iniziare · 🟨 in corso · ✅ completata · ⛔ bloccata
 
@@ -36,10 +37,10 @@ Legenda: ⬜ da iniziare · 🟨 in corso · ✅ completata · ⛔ bloccata
 | SQL Server LocalDB | Presente (`MSSQLLocalDB`); si crea l'istanza dedicata `localdev` | DB locale (D9) |
 | git | Istanza di Fork: `C:\Users\dusim\AppData\Local\Fork\gitInstance\2.50.1\cmd\git.exe` (2.50.1) — non nel PATH | Da aggiungere al PATH utente o usare il path assoluto (D15) |
 | Aspire CLI/template | Assenti | Installazione in Fase 0 |
-| azd / az | Assenti | Servono solo in Fase 6 |
+| azd / az | Assenti | Servono solo in Fase 7 |
 | Ollama | Assente; GPU RTX 5060 Laptop 8 GB VRAM, 31 GB RAM | Modello locale solo smoke test (D12) |
 
-## Architettura locale (Fasi 0–5)
+## Architettura locale (Fasi 0–6)
 
 ```mermaid
 flowchart LR
@@ -52,6 +53,8 @@ flowchart LR
         ERP["Erp.Api<br/>(Minimal API + EF Core)"]
         ORCH["Orchestrator<br/>(agenti + handoff + policy)"]
         APPR["Approvals.Web<br/>(UI /approvals + callback)"]
+        CRMWEB["Crm.Web<br/>(UI deal e aziende, chiusura)"]
+        ERPWEB["Erp.Web<br/>(UI clienti, magazzino, ordini)"]
         DASH["Aspire Dashboard<br/>(OTLP)"]
     end
     DB[("LocalDB (localdb)\\localdev<br/>DB O2C: schemi erp · crm · orch")]
@@ -64,6 +67,8 @@ flowchart LR
     ERPMCP -- HTTP --> ERP
     ORCH -- IChatClient --> LLM
     APPR -- "approval-decided" --> RMQ
+    CRMWEB -- "HTTP /api/views + close" --> CRM
+    ERPWEB -- "HTTP /api/views" --> ERP
     ERP --- DB
     CRM --- DB
     ORCH --- DB
@@ -73,6 +78,8 @@ flowchart LR
     ERPMCP -. OTLP .-> DASH
     CRM -. OTLP .-> DASH
     APPR -. OTLP .-> DASH
+    CRMWEB -. OTLP .-> DASH
+    ERPWEB -. OTLP .-> DASH
 ```
 
 ## Decisioni del gate socratico
@@ -82,9 +89,9 @@ flowchart LR
 | D1 | Aggiunta una **Fase 0 — Setup e scaffolding** prima delle 6 fasi di §11: i NFR di §12 valgono dalla prima riga | 0 |
 | D2 | Struttura: `plan.md` indice + un file per fase con Gate di fase, spike, step, test, accettazione, rischi, DoD | — |
 | D3 | Fonte di verità del piano: `C:\WorkspaceAI\PLANS\2026-09-11-o2c-agentic-poc\`; copia in `docs/plan/` del repo in Fase 0 | 0 |
-| D4 | Fase 6 solo outline; si dettaglia al suo avvio | 6 |
+| D4 | Fase del deploy (oggi Fase 7, D57) solo outline; si dettaglia al suo avvio | 7 |
 | D5 | Scenari demo nel seed (deal D-1001…D-1008) + README di demo | 1, 5 |
-| D6 | Trigger: CLI con `dealId` in Fase 3; in Fase 4 **RabbitMQ** (container esistente in WSL) dietro `IDealEventSource`; Service Bus solo in Fase 6 | 3, 4, 6 |
+| D6 | Trigger: CLI con `dealId` in Fase 3; in Fase 4 **RabbitMQ** (container esistente in WSL) dietro `IDealEventSource`; Service Bus solo in Fase 7 (deploy, D57) | 3, 4, 7 |
 | D7 | Runtime **`net10.0`** (LTS installato), percorso di upgrade a .NET 11 successivo | 0 |
 | D8 | Nessun container gestito da Aspire: RabbitMQ e LocalDB entrano come **risorse esterne via connection string** | 0 |
 | D9 | DB locale: **SQL Server LocalDB, istanza dedicata `localdev`**, database `O2C` (stesso provider EF di Azure SQL) | 0, 1 |
@@ -103,7 +110,7 @@ flowchart LR
 | D22 | Solo deal in **EUR**; altre valute → `Discarded` con nota | 4 |
 | D23 | `update_deal.status` è l'enum chiuso `ApprovalPending \| OrderCreated \| Rejected \| Expired \| Discarded \| Failed`; si scrive anche `ApprovalPending` alla sospensione | 1, 5 |
 | D24 | Scadenza: hosted service nell'Orchestrator → `Expired` + `update_deal` + log (nessuna email) | 5 |
-| D25 | Approvatore da configurazione in locale (`DecidedBy`); Entra/Teams in Fase 6; regole "non chiedere più" fuori scope | 5, 6 |
+| D25 | Approvatore da configurazione in locale (`DecidedBy`); Entra/Teams in Fase 7 (deploy, D57); regole "non chiedere più" fuori scope | 5, 7 |
 | D26 | WSL spegne la VM (e Docker) pochi secondi dopo l'ultima sessione: l'AppHost tiene aperta una sessione con la risorsa eseguibile `rabbitmq-wsl` (`wsl -d Ubuntu-26.04 -- docker start --attach rabbitmq`). Nessuna configurazione di macchina né script al riavvio; il broker è attivo solo mentre gira l'AppHost (Gate F0, 2026-09-14) | 0, 4 |
 | D27 | Root name **`Dusiburg.AI.O2C`**: progetti, cartelle, assembly e namespace si chiamano `Dusiburg.AI.O2C.<Nome>` (es. `src/Dusiburg.AI.O2C.Erp.Api/Dusiburg.AI.O2C.Erp.Api.csproj`), solution `Dusiburg.AI.O2C.slnx`, sorgenti di telemetria `Dusiburg.AI.O2C.*`. Restano invariati i valori di dominio (`o2c-…` della chiave di idempotenza, vhost `o2c`, database `O2C`) e i nomi delle risorse Aspire (`erp-api`, …). Correzione di G0.4 chiesta dall'utente dopo la Fase 0 (2026-09-14) | tutte |
 | D28 | Framework di test **NUnit 4** con modello a vincoli `Assert.That` e NUnit.Analyzers, runner NUnit su Microsoft.Testing.Platform (`EnableNUnitRunner`), coverage con `Microsoft.Testing.Extensions.CodeCoverage` (anche da Visual Studio). Sostituisce xUnit v3 dopo un confronto sugli stessi test (stessi risultati); scelto per familiarità dell'utente. Da ricordare: un'istanza per classe di test (stato da reinizializzare in `[SetUp]`) ed esecuzione sequenziale per default (2026-09-14) | tutte |
@@ -117,7 +124,7 @@ flowchart LR
 | D36 | **Test di `Erp.Mcp` su `Erp.Api` reale** (utente, Gate F2, G2.7): casi felici e di dominio contro `Erp.Api` in-process su database `O2C_Test_<guid>`; `HttpMessageHandler` stub solo per gli errori upstream (500, timeout, eccezione) e per la verifica della correlazione (2026-09-15) | 2 |
 | D37 | **Proposte del Gate F2 accettate**: nomi dei tool senza prefisso (G2.2); una API key per server (`ERP_MCP_API_KEY`, `CRM_MCP_API_KEY`), il servizio non parte se manca (G2.3); MCP Inspector opzionale (G2.4); `create_order` con annotazione `destructive` e `_meta` `o2c.sensitive = true` (G2.5). SDK `ModelContextProtocol.AspNetCore` **2.2.0**, trasporto HTTP stateless, protocollo negoziato `2026-07-28` (spike S2) (2026-09-15) | 2, 3, 5 |
 | D38 | **Opzioni JSON dei tool MCP** (emerso dai test di Fase 2): i tool usano `O2CMcpServerExtensions.ToolSerializerOptions` (`JsonSerializerDefaults.Web` con resolver a reflection, null mantenuti) invece delle opzioni di default dell'SDK, che omettono le proprietà null (`{ customer: null }` → `{}`) e accettano gli enum anche come interi scavalcando `StrictStringEnumConverter`. In Fase 3 il lato client dell'orchestratore deve leggere e scrivere gli argomenti con le stesse regole (2026-09-15) | 2, 3 |
-| D39 | **Modello cloud: Claude via API Anthropic** (utente, Gate F3, G3.1): `MODEL_PROVIDER` = `anthropic` (default) \| `ollama`; **Azure OpenAI esce dal POC** (rivede D11). SDK ufficiale `Anthropic` per C#, che implementa `IChatClient`; modello **`claude-sonnet-5`** (scelta dell'utente fra Opus 5, Sonnet 5 e Haiku 4.5). Claude è disponibile anche in Microsoft Foundry: opzione per la Fase 6, non adottata ora (M23) (2026-09-15) | 3, 6 |
+| D39 | **Modello cloud: Claude via API Anthropic** (utente, Gate F3, G3.1): `MODEL_PROVIDER` = `anthropic` (default) \| `ollama`; **Azure OpenAI esce dal POC** (rivede D11). SDK ufficiale `Anthropic` per C#, che implementa `IChatClient`; modello **`claude-sonnet-5`** (scelta dell'utente fra Opus 5, Sonnet 5 e Haiku 4.5). Claude è disponibile anche in Microsoft Foundry: opzione per la Fase 7 (deploy, D57), non adottata ora (M23) (2026-09-15) | 3, 7 |
 | D40 | **Autenticazione al modello** (utente, Gate F3, G3.2): `ANTHROPIC_API_KEY` negli user-secrets, mai nel repo (chiude M10) (2026-09-15) | 3 |
 | D41 | **Modello locale** (utente, Gate F3, G3.5): Ollama nativo Windows (winget, CUDA sulla RTX 5060 Laptop 8 GB) con **`qwen3.5:9b`**; misurato con N run del flusso reale di D-1001 (completamento, tool e argomenti errati, latenza), **senza criteri di accettazione vincolanti** (D12 confermata). L'accettazione della Fase 3 si fa su Claude (2026-09-15) | 3 |
 | D42 | **Proposte del Gate F3 accettate**: prompt di sistema in inglese (G3.3); `System.CommandLine`, senza argomenti modalità worker (G3.4); solo D-1001 fino alla Fase 5 (G3.6) (2026-09-15) | 3 |
@@ -138,6 +145,11 @@ flowchart LR
 
 | D56 | **Possesso atomico della ripresa** (utente, dopo la ripetizione della Prova B, 2026-09-16): al riavvio dell'orchestratore il consumer di `approval-decided` e la sweep di riconciliazione sono partiti insieme, hanno **letto** entrambi `WorkflowState.Phase = AwaitingApproval` e hanno ripreso lo stesso workflow in parallelo. L'ordine è rimasto unico (l'indice univoco su `IdempotencyKey` ha fatto il suo lavoro, con l'eccezione di chiave duplicata visibile nei log e intercettata da `OrderService`), ma le note sul deal CRM — effetto collaterale non idempotente — si sono duplicate. L'uscita da `AwaitingApproval` diventa un **UPDATE condizionale** verso la fase nuova `Resuming`: procede solo chi tocca una riga. Il possesso scade dopo `ResumeClaimTimeout` (almeno 5 minuti) e la sweep recupera i workflow rimasti in `Resuming`, altrimenti un processo morto durante la ripresa li lascerebbe appesi per sempre | 5 |
 
+| D57 | **Nuova Fase 6 — UI web di CRM ed ERP** (utente, 2026-09-17): inserita dopo la Fase 5 e prima del deploy, che diventa **Fase 7** (file `fase-7-deploy-osservabilita.md`, gate G7.x). La fase è fuori dalle sei di §11 e ha criteri di accettazione propri; nella specifica si registra con M26 | 6, 7 |
+| D58 | **Due UI separate che parlano solo HTTP** (utente, 2026-09-17): `src/Dusiburg.AI.O2C.Crm.Web` (5105) e `src/Dusiburg.AI.O2C.Erp.Web` (5106), Razor Pages come `Approvals.Web`; leggono dalle nuove API `/api/views` di `Crm.Mcp` ed `Erp.Api`, che restano gli unici proprietari degli schemi `crm` ed `erp` (D18); nessuna connection string `sql`/`rabbitmq` nelle UI. `Erp.Web` è in sola lettura (clienti, magazzino, ordini ricevuti) | 6 |
+| D59 | **Chiusura del deal, vinto o perso** (utente, 2026-09-17): comando `POST /api/deals/{dealId}/close` su `Crm.Mcp` con esito `Won` (stage `ClosedWon` + evento `deal-closed-won`, come l'endpoint dev) o `Lost` (stage `ClosedLost`, nessun evento, nessun workflow); dettagli della transizione nel gate G6.3 | 6 |
+| D60 | **Correzioni emerse dai test della Fase 6** (2026-09-17): (a) in `Crm.Web` i retry del resilience handler standard sono disattivati per i metodi non sicuri con `ConfigureAll`, perché le opzioni registrate da `ConfigureHttpClientDefaults` non portano il nome del client e un retry dopo un 503 diventava un 409; (b) `ToolProblems.ConfigureExceptionHandler` fa rispondere 400 a un corpo JSON illeggibile, che in Development diventava 500, su `Crm.Mcp` ed `Erp.Api`; (c) `Erp.Web` rifiuta con 405 ogni metodo diverso da GET/HEAD. Emerso dal vivo, non corretto: su D-1007 un modello che non segnala lo SKU inesistente porta a un'approvazione `InsufficientStock` invece che a `Failed` (vedi Esito della Fase 6) | 6 |
+
 ## Registro modifiche alla specifica
 
 La specifica stessa impone che contratti e decisioni vi siano riportati prima di implementarli. Queste modifiche vanno scritte nel documento (dove, lo decide il Gate di Fase 0).
@@ -154,11 +166,11 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M8 | §7, §9, §13, §15 | Meccanismo di approvazione: `ApprovalRequiredAIFunction` su `erp.create_order` con la chiamata esposta su una porta esterna del workflow e la policy applicata dall'host; `ToolApprovalAgent` non usato | D13, D48 | ✅ Applicata in F5 (`docs/architettura.md`) |
 | M9 | §5, §7 | Regole di dominio: parziale/bloccato, solo EUR, prezzo del deal, riserva stock | D20–D22 | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M10 | §10 | Autenticazione locale al modello: `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | D40 | ✅ Applicata in F3 (`docs/architettura.md`) |
-| M23 | §3.1, §3.3, §9, §10, §16 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`; chiavi `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`; rimosse `AZURE_OPENAI_*`; Claude su Microsoft Foundry come opzione per la Fase 6 | D39–D41 | ✅ Applicata in F3 (`docs/architettura.md`) |
+| M23 | §3.1, §3.3, §9, §10, §16 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`; chiavi `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`; rimosse `AZURE_OPENAI_*`; Claude su Microsoft Foundry come opzione per la Fase 7 (deploy, D57) | D39–D41 | ✅ Applicata in F3 (`docs/architettura.md`) |
 | M11 | §8, §10 | Progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con Approvals.Web), `WorkflowState` con PK `Id` e lookup `WorkflowPhase`, schema da `DbInit` | D45 | ✅ Applicata in F4 (`docs/architettura.md`) |
 | M24 | §5, §10 | Workflow a tre agenti con handoff di Agent Framework: modalità autonoma limitata, tool locali di verdetto (`report_discarded`, `report_failed`), esiti e scritture `Discarded`/`Failed` dall'host; `O2C_AGENT_MODE=multi\|single`; trigger RabbitMQ con consumer idempotente su `orch.WorkflowState` | D44, D46, D47 | ✅ Applicata in F4 (`docs/architettura.md`) |
 | M12 | §7, §8, §10 | Sospensione e ripresa: `ApprovalRequest` (PK numerica + `PublicId`, `ReasonsJson`, `TraceParent`, `CheckpointId`, `RowVersion`), lookup `ApprovalStatus`/`ApprovalReason`, checkpoint su `orch.WorkflowCheckpoint`, messaggio `approval-decided` più sweep di riconciliazione, rifiuto e scadenza chiusi dall'host, `APPROVAL_TIMEOUT_HOURS` con decimali, `APPROVAL_SWEEP_MINUTES`, `Approvals__ApproverUpn` | Gate F5, D50–D52 | ✅ Applicata in F5 (`docs/architettura.md`) |
-| M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F6 | Da decidere in F6 |
+| M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Gate F7 | Da decidere in F7 |
 | M14 | §10 | Repository `AI.POC-OrderToCash` invece di `o2c-agentic-poc` | Gate F0 (D15) | ✅ Applicata in F0 (`docs/architettura.md`) |
 | M15 | §10 | Cartelle e progetti con root name `Dusiburg.AI.O2C.<Nome>` | D27 | ✅ Applicata dopo F0 (`docs/architettura.md`) |
 | M16 | §8 | Convenzioni di chiave: PK `Id` numerica, niente PK GUID (`Order.PublicId`), chiavi di business come colonne univoche (`Sku`, `Code`) | D29 | ✅ Applicata in F1 (`docs/architettura.md`) |
@@ -169,6 +181,8 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 | M21 | §10 | Progetto `src/Dusiburg.AI.O2C.Mcp.Hosting` (infrastruttura comune dei server MCP) | D35 | ✅ Applicata in F2 (`docs/architettura.md`) |
 | M22 | §6 | Errore di tool come risultato `isError = true` con l'envelope come testo JSON; output strutturato solo per i risultati positivi | D33 | ✅ Applicata in F2 (`docs/architettura.md`) |
 | M25 | §6.1, §7, §8 | Giacenze verificate dall'host sulle righe proposte; `create_order` con `backorderNote`, colonna `erp.Order.BackorderNote`, nota riportata sul deal CRM | D54, D55 | ✅ Applicata in F5 (`docs/architettura.md`) |
+| M26 | §3.1, §10, §11 | Nuova Fase 6 "UI dei sistemi" (il deploy diventa Fase 7); progetti `Crm.Web`, `Erp.Web` e `tests/Dusiburg.AI.O2C.Web.Tests`; porte 5105/5106; diagramma con le due UI | D57, D58 | ✅ Applicata in F6 (`docs/architettura.md`) |
+| M27 | §3.1, §6.3 | API di lettura `/api/views` su `Crm.Mcp` ed `Erp.Api` (fuori dai contratti dei tool) e comando `POST /api/deals/{dealId}/close` (`Won` \| `Lost`) sul CRM mock come ingresso del flusso | D58, D59 | ✅ Applicata in F6 (`docs/architettura.md`) |
 
 ## Convenzioni trasversali (valgono da Fase 0)
 
@@ -177,7 +191,7 @@ La specifica stessa impone che contratti e decisioni vi siano riportati prima di
 - **Tracing**: ogni tool call produce uno span con `agent.name`, `tool.name`, `correlation.id`, `tool.outcome` + durata; prefisso `ActivitySource` `Dusiburg.AI.O2C.*`.
 - **Errori dei tool**: sempre `{ error: { code, message } }`; catalogo codici: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL`.
 - **Segreti**: solo user-secrets in locale (AppHost e progetti), mai nel repo; controllo con grep prima di ogni commit.
-- **Porte fisse locali** (comode per CLI e `.http`): Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104.
+- **Porte fisse locali** (comode per CLI e `.http`): Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104, Crm.Web 5105, Erp.Web 5106 (Fase 6).
 - **Build di verifica**: la solution è nuova e non è nella mappa della skill `verify-build`: l'equivalente è `dotnet build Dusiburg.AI.O2C.slnx` sull'intera solution (mai singoli progetti come verifica finale).
 
 ## Definition of Done comune a ogni fase

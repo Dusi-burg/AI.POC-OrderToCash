@@ -22,7 +22,7 @@ var crmMcpApiKey = builder.AddParameter("crm-mcp-api-key", secret: true);
 // Chiave del modello Claude (D40, M10): Parameters:anthropic-api-key. La CLI dell'orchestratore la legge dagli stessi user-secrets.
 var anthropicApiKey = builder.AddParameter("anthropic-api-key", secret: true);
 
-// Porte fisse dai launchSettings: Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104.
+// Porte fisse dai launchSettings: Erp.Api 5101, Erp.Mcp 5102, Crm.Mcp 5103, Approvals.Web 5104, Crm.Web 5105, Erp.Web 5106.
 var erpApi = builder.AddProject<Projects.Dusiburg_AI_O2C_Erp_Api>("erp-api")
     .WithReference(sql)
     .WithHttpHealthCheck("/health");
@@ -65,7 +65,25 @@ var approvals = builder.AddProject<Projects.Dusiburg_AI_O2C_Approvals_Web>("appr
     .WithReference(rabbitmq)
     .WithHttpHealthCheck("/health");
 
-approvals.WithConfigurationEnvironment(builder, "Approvals__ApproverUpn", "Approvals__CrmDevBaseUrl");
+approvals.WithConfigurationEnvironment(builder, "Approvals__ApproverUpn");
+
+// UI dei due sistemi (Fase 6, D58): solo HTTP verso il servizio proprietario dei dati, nessun riferimento a sql o rabbitmq.
+var crmWeb = builder.AddProject<Projects.Dusiburg_AI_O2C_Crm_Web>("crm-web")
+    .WithReference(crmMcp)
+    .WithHttpHealthCheck("/health");
+
+var erpWeb = builder.AddProject<Projects.Dusiburg_AI_O2C_Erp_Web>("erp-web")
+    .WithReference(erpApi)
+    .WithHttpHealthCheck("/health");
+
+// Collegamenti fra le tre UI (G6.8) dagli endpoint delle risorse: nessun indirizzo da configurare a mano.
+foreach (var portal in new[] { approvals, crmWeb, erpWeb })
+{
+    portal
+        .WithEnvironment("Links__CrmWeb", crmWeb.GetEndpoint("http"))
+        .WithEnvironment("Links__ErpWeb", erpWeb.GetEndpoint("http"))
+        .WithEnvironment("Links__ApprovalsWeb", approvals.GetEndpoint("http"));
+}
 
 builder.Build().Run();
 

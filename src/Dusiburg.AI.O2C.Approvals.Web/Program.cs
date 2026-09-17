@@ -1,5 +1,6 @@
 using Dusiburg.AI.O2C.Approvals.Web.Approvals;
 using Dusiburg.AI.O2C.Orchestration.Data;
+using Dusiburg.AI.O2C.ServiceDefaults.Portal;
 using Dusiburg.AI.O2C.ServiceDefaults.Problems;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -17,6 +18,7 @@ builder.Services.AddScoped<ApprovalRepository>();
 builder.Services.AddSingleton<IApprovalDecisionPublisher, RabbitMqApprovalDecisionPublisher>();
 builder.Services.AddScoped<ApprovalDecisionService>();
 builder.Services.AddProblemDetails(ToolProblems.Configure);
+builder.Services.AddPortalLinks(builder.Configuration);
 builder.Services.AddRazorPages();
 
 var app = builder.Build();

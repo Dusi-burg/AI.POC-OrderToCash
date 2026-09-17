@@ -228,6 +228,20 @@ public class OrderEndpointTests : ErpApiTestBase
         Assert.That(await ReservedAsync("IND-BRG-001"), Is.EqualTo(DemoCatalog.Products.Single(p => p.Sku == "IND-BRG-001").Reserved));
     }
 
+    [Test]
+    public async Task CreateOrder_UnreadableJson_ReturnsValidationErrorInsteadOfServerError()
+    {
+        //SETUP
+        using HttpClient client = Factory.CreateClient();
+        using var content = new StringContent("""{ "customerId": "uno" }""", System.Text.Encoding.UTF8, "application/json");
+
+        //SUT
+        using HttpResponseMessage response = await client.PostAsync("/api/orders", content, CancellationToken);
+
+        Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.BadRequest));
+        Assert.That(await ReadProblemCodeAsync(response), Is.EqualTo(ToolErrorCodes.ValidationError));
+    }
+
     private static async Task<CreateOrderRequest> OrderForDealAsync(HttpClient client, DemoDeal deal)
     {
         var company = DemoCatalog.Companies.Single(c => c.CompanyId == deal.CompanyId);

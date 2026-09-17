@@ -1,0 +1,25 @@
+@page "/companies/{companyId}"
+@model Dusiburg.AI.O2C.Crm.Web.Pages.Companies.DetailsModel
+@{
+    var company = Model.Company;
+    ViewData["Title"] = company.Name;
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">@company.Name <small class="text-muted">@company.CompanyId</small></h1>
+    <a class="btn btn-outline-secondary btn-sm" asp-page="/Companies/Index">Tutte le aziende</a>
+</div>
+
+<dl class="row mb-4">
+    <dt class="col-sm-2">Partita IVA</dt>
+    <dd class="col-sm-10">@(company.VatNumber ?? "—")</dd>
+
+    <dt class="col-sm-2">Email</dt>
+    <dd class="col-sm-10">@company.Email</dd>
+
+    <dt class="col-sm-2">Indirizzo</dt>
+    <dd class="col-sm-10">@company.Address</dd>
+</dl>
+
+<h2 class="h5">Deal dell'azienda</h2>
+<partial name="_DealTable" model="company.Deals" />

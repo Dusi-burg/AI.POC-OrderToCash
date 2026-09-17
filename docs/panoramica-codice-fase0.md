@@ -27,7 +27,7 @@ Quello che invece è già reale e funzionante sono i requisiti trasversali di §
 
 | Progetto | SDK / tipo | Ruolo oggi | Ruolo a regime |
 |----------|-----------|------------|----------------|
-| `Dusiburg.AI.O2C.AppHost` | `Aspire.AppHost.Sdk/13.5.3` | Avvia e compone tutto, inietta configurazione e segreti | Idem + `azd up` in Fase 6 |
+| `Dusiburg.AI.O2C.AppHost` | `Aspire.AppHost.Sdk/13.5.3` | Avvia e compone tutto, inietta configurazione e segreti | Idem + `azd up` in Fase 7 |
 | `Dusiburg.AI.O2C.ServiceDefaults` | classlib (`IsAspireSharedProject`) | OTel, health, service discovery, resilienza, correlation id | Idem |
 | `Dusiburg.AI.O2C.Shared` | classlib senza dipendenze | Contratti §6, correlazione, idempotenza, errori, nomi di telemetria | Idem |
 | `Dusiburg.AI.O2C.Erp.Api` | Web (minimal API) | `GET /` informativo | ERP mock: EF Core su LocalDB, schema `erp` (Fase 1) |

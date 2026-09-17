@@ -1,0 +1,155 @@
+@page "/deals/{dealId}"
+@using Dusiburg.AI.O2C.ServiceDefaults.Portal
+@using Microsoft.Extensions.Options
+@model Dusiburg.AI.O2C.Crm.Web.Pages.Deals.DetailsModel
+@inject IOptions<PortalLinks> PortalLinksOptions
+@{
+    var detail = Model.Detail;
+    var deal = detail.Deal;
+    var links = PortalLinksOptions.Value;
+    var orderLink = deal.ErpOrderNumber is { } orderNumber ? links.ErpOrder(orderNumber) : null;
+    var approvalsLink = deal.O2CStatus is not null ? links.ApprovalsForDeal(deal.DealId) : null;
+    ViewData["Title"] = $"Deal {deal.DealId}";
+
+    if (Model.IsInFlight)
+    {
+        ViewData["AutoRefreshSeconds"] = DealPresentation.RefreshSeconds;
+    }
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">@deal.DealId <small class="text-muted">@deal.Name</small></h1>
+    <div>
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Deals/Details" asp-route-dealId="@deal.DealId">Aggiorna</a>
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Deals/Index">Tutti i deal</a>
+    </div>
+</div>
+
+@if (Model.Message is { Length: > 0 } message)
+{
+    <div class="alert alert-@(Model.MessageKind ?? "info")" id="close-message">@message</div>
+}
+
+@if (Model.IsInFlight)
+{
+    <div class="alert alert-light border" id="in-flight">
+        Flusso Order-to-Cash in corso: la pagina si aggiorna ogni @DealPresentation.RefreshSeconds secondi.
+    </div>
+}
+
+<div class="row g-4">
+    <div class="col-md-7">
+        <h2 class="h5">Righe</h2>
+        <table class="table table-sm">
+            <thead>
+                <tr>
+                    <th>SKU</th>
+                    <th class="text-end">Quantità</th>
+                    <th class="text-end">Prezzo</th>
+                    <th class="text-end">Totale riga</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var line in detail.Lines)
+                {
+                    <tr>
+                        <td><code>@line.Sku</code></td>
+                        <td class="text-end">@line.Quantity</td>
+                        <td class="text-end">@line.UnitPrice.ToString("N2")</td>
+                        <td class="text-end">@line.LineTotal.ToString("N2")</td>
+                    </tr>
+                }
+            </tbody>
+            <tfoot>
+                <tr class="fw-bold">
+                    <td colspan="3" class="text-end">Importo</td>
+                    <td class="text-end">@deal.Amount.ToString("N2") @deal.Currency</td>
+                </tr>
+            </tfoot>
+        </table>
+
+        <h2 class="h5 mt-4">Storico Order-to-Cash</h2>
+        @if (detail.Notes.Count == 0)
+        {
+            <p class="text-muted">Nessuna scrittura di O2C su questo deal.</p>
+        }
+        else
+        {
+            <table class="table table-sm" id="notes">
+                <thead>
+                    <tr>
+                        <th>Quando</th>
+                        <th>Stato</th>
+                        <th>Ordine</th>
+                        <th>Nota</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var note in detail.Notes)
+                    {
+                        <tr>
+                            <td class="text-nowrap">@note.CreatedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")</td>
+                            <td><span class="badge @DealPresentation.StatusClass(note.Status)">@note.Status</span></td>
+                            <td>@(note.ErpOrderNumber ?? "—")</td>
+                            <td>@(note.Note ?? "—")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+    </div>
+
+    <div class="col-md-5">
+        <h2 class="h5">Dati del deal</h2>
+        <dl class="row mb-4">
+            <dt class="col-5">Azienda</dt>
+            <dd class="col-7"><a asp-page="/Companies/Details" asp-route-companyId="@deal.CompanyId">@deal.CompanyName</a> <code>@deal.CompanyId</code></dd>
+
+            <dt class="col-5">Stage</dt>
+            <dd class="col-7"><span class="badge @DealPresentation.StageClass(deal.Stage)" id="stage">@DealPresentation.StageLabel(deal.Stage)</span></dd>
+
+            <dt class="col-5">Revisione</dt>
+            <dd class="col-7">@deal.Revision</dd>
+
+            <dt class="col-5">Stato O2C</dt>
+            <dd class="col-7"><span class="badge @DealPresentation.StatusClass(deal.O2CStatus)" id="o2c-status">@DealPresentation.StatusLabel(deal.O2CStatus)</span></dd>
+
+            <dt class="col-5">Ordine ERP</dt>
+            <dd class="col-7">
+                @if (orderLink is not null)
+                {
+                    <a href="@orderLink" id="erp-order-link">@deal.ErpOrderNumber</a>
+                }
+                else
+                {
+                    @(deal.ErpOrderNumber ?? "—")
+                }
+            </dd>
+
+            <dt class="col-5">Ultima nota</dt>
+            <dd class="col-7">@(detail.LastNote ?? "—")</dd>
+
+            <dt class="col-5">Aggiornato</dt>
+            <dd class="col-7">@deal.UpdatedAt.LocalDateTime.ToString("dd/MM/yyyy HH:mm:ss")</dd>
+
+            @if (approvalsLink is not null)
+            {
+                <dt class="col-5">Approvazioni</dt>
+                <dd class="col-7"><a href="@approvalsLink" id="approvals-link">Richieste del deal</a></dd>
+            }
+        </dl>
+
+        @if (Model.CanClose)
+        {
+            <form method="post" id="close-commands">
+                <button class="btn btn-success" type="submit" asp-page-handler="Won" asp-route-dealId="@deal.DealId">Chiudi vinto</button>
+                <button class="btn btn-outline-danger" type="submit" asp-page-handler="Lost" asp-route-dealId="@deal.DealId">Chiudi perso</button>
+                <p class="form-text mt-2">"Chiudi vinto" avvia il flusso Order-to-Cash; "Chiudi perso" chiude il deal senza generare ordini.</p>
+            </form>
+        }
+        else
+        {
+            <p class="text-muted">Il deal è chiuso: non sono possibili altre azioni.</p>
+        }
+    </div>
+</div>

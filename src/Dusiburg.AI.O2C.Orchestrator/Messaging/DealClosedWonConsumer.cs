@@ -10,7 +10,7 @@ using RabbitMQ.Client.Events;
 namespace Dusiburg.AI.O2C.Orchestrator.Messaging;
 
 /// <summary>
-/// Sorgente degli eventi <c>deal-closed-won</c> (4.5, D46): nel POC RabbitMQ, in Fase 6 Service Bus dietro la stessa interfaccia.
+/// Sorgente degli eventi <c>deal-closed-won</c> (4.5, D46): nel POC RabbitMQ, in Fase 7 Service Bus dietro la stessa interfaccia.
 /// </summary>
 public interface IDealEventSource;
 

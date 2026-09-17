@@ -1,0 +1,31 @@
+@page "/companies"
+@model Dusiburg.AI.O2C.Crm.Web.Pages.Companies.IndexModel
+@{
+    ViewData["Title"] = "Aziende";
+}
+
+<h1 class="h3 mb-3">Aziende</h1>
+
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Codice</th>
+            <th>Ragione sociale</th>
+            <th>Partita IVA</th>
+            <th>Email</th>
+            <th class="text-end">Deal</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var company in Model.Companies)
+        {
+            <tr>
+                <td><a asp-page="/Companies/Details" asp-route-companyId="@company.CompanyId"><code>@company.CompanyId</code></a></td>
+                <td>@company.Name</td>
+                <td>@(company.VatNumber ?? "—")</td>
+                <td>@company.Email</td>
+                <td class="text-end">@company.DealCount</td>
+            </tr>
+        }
+    </tbody>
+</table>

@@ -2,7 +2,7 @@
 
 > **Stato**: working copy del branch `develop` al 2026-09-16, Fase 5 completata ([fase-5-human-in-the-loop.md](plan/fase-5-human-in-the-loop.md)). Riferimenti: [plan.md](plan/plan.md) · specifica [architettura.md](architettura.md) · documenti precedenti [fase 3](panoramica-codice-fase3.md), [fase 4](panoramica-codice-fase4.md) · script della demo [demo.md](demo.md).
 >
-> Come per le fasi precedenti, qui si descrive **quello che il codice fa oggi**. Ciò che è solo predisposto per la Fase 6 è indicato esplicitamente.
+> Come per le fasi precedenti, qui si descrive **quello che il codice fa oggi**. Ciò che è solo predisposto per la Fase 7 (deploy; era la Fase 6 prima dell'inserimento delle UI) è indicato esplicitamente.
 
 ## 1. In sintesi
 
@@ -25,7 +25,7 @@ La Fase 5 ha reso il workflow **sospendibile**: `erp.create_order` non parte pi�
 | Telemetria | `agent.run`, `agent.handoff` | + `approval.requested`, `approval.decided`, `approval.resume`, `approval.expired` |
 | Test | 169 | **200** (+25 in `Orchestrator.Tests`, +6 su `Approvals.Web`, +3 in `Erp.Api.Tests`) |
 
-Resta **solo predisposto**: il canale Teams (l'endpoint di callback è già quello definitivo) e tutto ciò che è Azure (Fase 6).
+Resta **solo predisposto**: il canale Teams (l'endpoint di callback è già quello definitivo) e tutto ciò che è Azure (Fase 7).
 
 ## 2. Mappa della solution
 
@@ -148,7 +148,7 @@ Un solo hosted service, due compiti, all'avvio e ogni `APPROVAL_SWEEP_MINUTES`:
 | `/approvals/{id}` | Proposta leggibile (righe, giacenze, totale), contesto (cliente, motivi, correlation id, chiave di idempotenza, link al deal), azioni Approva/Rifiuta con nota |
 | `POST /api/approvals/{id}/decision` | Callback unico, usato dalla UI e in futuro da Teams. `200` con l'esito, `404` se la richiesta non esiste, **`409` se era già decisa** |
 | `ApprovalDecisionService` | Transizione sotto `RowVersion`, poi pubblicazione di `approval-decided`. Se la pubblicazione fallisce, la decisione resta scritta e la riconciliazione fa il resto |
-| `IApprovalDecisionPublisher` | RabbitMQ dietro interfaccia, come `IDealEventSource` nell'orchestratore: in Fase 6 cambia il broker, e i test non ne hanno bisogno |
+| `IApprovalDecisionPublisher` | RabbitMQ dietro interfaccia, come `IDealEventSource` nell'orchestratore: in Fase 7 cambia il broker, e i test non ne hanno bisogno |
 
 Razor Pages senza librerie JS (G5.7). L'approvatore viene da `Approvals:ApproverUpn` (D25).
 

@@ -1,7 +1,9 @@
 using Dusiburg.AI.O2C.Approvals.Web.Approvals;
 using Dusiburg.AI.O2C.Orchestration.Data;
+using Dusiburg.AI.O2C.ServiceDefaults.Portal;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.Extensions.Options;
 
 namespace Dusiburg.AI.O2C.Approvals.Web.Pages.Approvals;
 
@@ -9,11 +11,8 @@ namespace Dusiburg.AI.O2C.Approvals.Web.Pages.Approvals;
 /// Dettaglio di una richiesta (5.4): proposta leggibile e azioni Approva/Rifiuta con nota facoltativa. Le azioni
 /// passano dallo stesso servizio dell'endpoint di callback, quindi UI e integrazioni si comportano allo stesso modo.
 /// </summary>
-public sealed class DetailsModel(ApprovalDecisionService approvals, IConfiguration configuration) : PageModel
+public sealed class DetailsModel(ApprovalDecisionService approvals, IOptions<PortalLinks> links) : PageModel
 {
-    /// <summary>Base del CRM mock per il collegamento al deal (endpoint dev di Fase 1).</summary>
-    public const string CrmBaseSetting = "Approvals:CrmDevBaseUrl";
-
     public ApprovalView? Approval { get; private set; }
 
     [BindProperty]
@@ -23,10 +22,8 @@ public sealed class DetailsModel(ApprovalDecisionService approvals, IConfigurati
 
     public string Approver => approvals.Approver;
 
-    public string? DealLink =>
-        configuration[CrmBaseSetting] is { Length: > 0 } baseUrl && Approval is { } request
-            ? $"{baseUrl.TrimEnd('/')}/dev/deals/{request.Summary.DealId}"
-            : null;
+    /// <summary>Pagina del deal in Crm.Web (G6.8).</summary>
+    public string? DealLink => Approval is { } request ? links.Value.CrmDeal(request.Summary.DealId) : null;
 
     public async Task<IActionResult> OnGetAsync(Guid id, CancellationToken cancellationToken)
     {

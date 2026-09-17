@@ -164,6 +164,6 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 - **Nomi dei tool di trasferimento** `handoff_to_1` (non `handoff_to_<id>` come in documentazione); nessun evento di handoff dal framework.
 - **Istruzioni in costanti C#** invece di file `.md` incorporati (4.1).
 - **Riaccodamento**: invece del nack con riaccodamento si ripubblica una copia con `x-retry-count` e si conferma l'originale (gli header non si modificano con il nack); oltre 3 tentativi `reject` senza riaccodamento → dead-letter. Non provato dal vivo (nessun errore transitorio durante le prove).
-- **`IDealEventSource`** è un'interfaccia marcatore implementata dal consumer; il cambio verso Service Bus (Fase 6) resta da progettare.
+- **`IDealEventSource`** è un'interfaccia marcatore implementata dal consumer; il cambio verso Service Bus (Fase 7, deploy — era la Fase 6 prima di D57) resta da progettare.
 - **Ripetere la demo**: `POST /dev/reset` su ERP e CRM non pulisce `orch.WorkflowState`; senza pulizia un nuovo `close-won` sulla stessa revisione viene considerato duplicato. Per ripartire: `DbInit` oppure cancellare le righe di `orch.WorkflowState`.
 - Il publisher dichiara solo l'exchange: se il consumer non ha ancora dichiarato la coda, un evento pubblicato prima del suo avvio va perso (per le prove si attende il log "In ascolto su …").

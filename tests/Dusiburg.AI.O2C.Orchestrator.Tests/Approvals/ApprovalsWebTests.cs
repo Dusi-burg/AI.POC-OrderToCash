@@ -35,6 +35,7 @@ internal sealed class RecordingApprovalDecisionPublisher : IApprovalDecisionPubl
 public class ApprovalsWebTests
 {
     private const string Approver = "approver@test.local";
+    private const string CrmWeb = "http://crm.test";
 
     private string _connectionString = null!;
     private RecordingApprovalDecisionPublisher _publisher = null!;
@@ -58,6 +59,7 @@ public class ApprovalsWebTests
             // Il client RabbitMQ dell'integrazione Aspire pretende una connection string anche se il publisher è sostituito.
             builder.UseSetting("ConnectionStrings:rabbitmq", "amqp://guest:guest@localhost:5672/o2c");
             builder.UseSetting(ApprovalDecisionService.ApproverSetting, Approver);
+            builder.UseSetting("Links:CrmWeb", CrmWeb);
 
             builder.ConfigureServices(services =>
             {
@@ -194,25 +196,55 @@ public class ApprovalsWebTests
         Assert.That(response.StatusCode, Is.EqualTo(HttpStatusCode.NotFound));
     }
 
+    [Test]
+    public async Task Queue_FilteredByDeal_ShowsOnlyThatDeal()
+    {
+        //SETUP
+        await GivenPendingRequestAsync("D-1002");
+        await GivenPendingRequestAsync("D-1004");
+        using var client = _factory.CreateClient();
+
+        //SUT
+        string filtered = await client.GetStringAsync("/approvals?all=true&dealId=D-1004", CancellationToken);
+        string unfiltered = await client.GetStringAsync("/approvals", CancellationToken);
+
+        Assert.That(filtered, Does.Contain("<code>D-1004</code>").And.Not.Contain("<code>D-1002</code>"));
+        Assert.That(filtered, Does.Contain("deal D-1004"));
+        Assert.That(unfiltered, Does.Contain("<code>D-1004</code>").And.Contain("<code>D-1002</code>"));
+    }
+
+    [Test]
+    public async Task Details_LinksTheDealPageInCrmWeb()
+    {
+        //SETUP
+        var approvalId = await GivenPendingRequestAsync();
+        using var client = _factory.CreateClient();
+
+        //SUT
+        string page = await client.GetStringAsync($"/approvals/{approvalId}", CancellationToken);
+
+        Assert.That(page, Does.Contain($"href=\"{CrmWeb}/deals/D-1002\"").And.Not.Contain("/dev/deals/"));
+    }
+
     /// <summary>Una richiesta pendente come quella che l'orchestratore scrive alla sospensione di D-1002.</summary>
-    private async Task<Guid> GivenPendingRequestAsync()
+    private async Task<Guid> GivenPendingRequestAsync(string dealId = "D-1002")
     {
         var approvalId = Guid.CreateVersion7();
         var correlationId = $"corr-{approvalId:N}";
 
         var payload = new ApprovalPayload(
-            "D-1002", 1, "Automazione impianto confezionamento", "C-02", "Cartiera del Brenta S.p.A.",
+            dealId, 1, "Automazione impianto confezionamento", "C-02", "Cartiera del Brenta S.p.A.",
             4, "Cartiera del Brenta S.p.A.", false, false,
             [new ApprovalLine("IND-MOT-002", 8, 575m, true, 12, 14)],
             4_600m,
-            "o2c-D-1002-r1");
+            $"o2c-{dealId}-r1");
 
         await WithDbAsync(async db =>
         {
             db.WorkflowStates.Add(new WorkflowState
             {
                 CorrelationId = correlationId,
-                DealId = "D-1002",
+                DealId = dealId,
                 DealRevision = 1,
                 Phase = WorkflowPhase.AwaitingApproval,
                 CreatedAt = DateTimeOffset.UtcNow,
@@ -223,7 +255,7 @@ public class ApprovalsWebTests
             {
                 PublicId = approvalId,
                 CorrelationId = correlationId,
-                DealId = "D-1002",
+                DealId = dealId,
                 DealRevision = 1,
                 PayloadJson = JsonSerializer.Serialize(payload, JsonSerializerOptions.Web),
                 ReasonsJson = JsonSerializer.Serialize(new[] { ApprovalReason.OverThreshold }, JsonSerializerOptions.Web),

@@ -1,0 +1,42 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "ERP";
+    var dashboard = Model.Dashboard;
+}
+
+<h1 class="h3 mb-3">ERP — clienti, magazzino e ordini</h1>
+<p class="text-muted">Vista in sola lettura dell'ERP della demo: gli ordini li crea solo il flusso Order-to-Cash.</p>
+
+<div class="row g-3 mb-4">
+    <div class="col-sm-3">
+        <a class="card text-decoration-none h-100" asp-page="/Customers/Index">
+            <div class="card-body">
+                <div class="text-muted small">Clienti (@dashboard.BlockedCustomerCount bloccati)</div>
+                <div class="display-6">@dashboard.CustomerCount</div>
+            </div>
+        </a>
+    </div>
+    @foreach (var (status, count) in dashboard.OrdersByStatus)
+    {
+        <div class="col-sm-3">
+            <a class="card text-decoration-none h-100" asp-page="/Orders/Index" asp-route-status="@status">
+                <div class="card-body">
+                    <div class="text-muted small">Ordini @status</div>
+                    <div class="display-6">@count</div>
+                </div>
+            </a>
+        </div>
+    }
+    <div class="col-sm-3">
+        <a class="card text-decoration-none h-100" asp-page="/Stock/Index" asp-route-shortOnly="true">
+            <div class="card-body">
+                <div class="text-muted small">Prodotti sotto scorta</div>
+                <div class="display-6">@dashboard.ShortStock.Count</div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<h2 class="h5">Ultimi ordini ricevuti</h2>
+<partial name="_OrderTable" model="dashboard.LatestOrders" />

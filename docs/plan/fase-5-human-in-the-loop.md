@@ -1,6 +1,6 @@
 # Fase 5 — Human-in-the-loop
 
-> Indice: [plan.md](plan.md) · Precedente: [Fase 4](fase-4-multi-agente.md) · Successiva: [Fase 6](fase-6-deploy-osservabilita.md)
+> Indice: [plan.md](plan.md) · Precedente: [Fase 4](fase-4-multi-agente.md) · Successiva: [Fase 6](fase-6-ui-crm-erp.md)
 
 ## Obiettivo
 

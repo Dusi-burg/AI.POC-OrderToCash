@@ -22,15 +22,15 @@ public sealed class ApprovalDecisionService(
     IConfiguration configuration,
     ILogger<ApprovalDecisionService> logger)
 {
-    /// <summary>Approvatore configurato in locale; in Fase 6 arriverà da Entra (D25).</summary>
+    /// <summary>Approvatore configurato in locale; in Fase 7 arriverà da Entra (D25).</summary>
     public const string ApproverSetting = "Approvals:ApproverUpn";
 
     public const string DefaultApprover = "approver@dusiburg.local";
 
     public string Approver => configuration[ApproverSetting] is { Length: > 0 } upn ? upn : DefaultApprover;
 
-    public async Task<IReadOnlyList<ApprovalView>> ListAsync(ApprovalStatus? status, CancellationToken cancellationToken) =>
-        [.. (await repository.ListAsync(status, cancellationToken)).Select(Map)];
+    public async Task<IReadOnlyList<ApprovalView>> ListAsync(ApprovalStatus? status, string? dealId, CancellationToken cancellationToken) =>
+        [.. (await repository.ListAsync(status, dealId, cancellationToken)).Select(Map)];
 
     public async Task<ApprovalView?> FindAsync(Guid approvalId, CancellationToken cancellationToken) =>
         await repository.FindAsync(approvalId, cancellationToken) is { } request ? Map(request) : null;

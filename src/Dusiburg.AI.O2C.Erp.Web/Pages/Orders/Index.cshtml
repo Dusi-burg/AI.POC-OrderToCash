@@ -1,0 +1,30 @@
+@page "/orders"
+@model Dusiburg.AI.O2C.Erp.Web.Pages.Orders.IndexModel
+@{
+    ViewData["Title"] = "Ordini ricevuti";
+}
+
+<h1 class="h3 mb-3">Ordini ricevuti</h1>
+
+<form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label" for="Status">Stato</label>
+        <select class="form-select form-select-sm" asp-for="Status">
+            <option value="">Tutti</option>
+            @foreach (var status in Enum.GetValues<OrderStatus>())
+            {
+                <option value="@status" selected="@(Model.Status == status)">@status</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="CustomerId">Id cliente</label>
+        <input class="form-control form-control-sm" asp-for="CustomerId" />
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary btn-sm" type="submit">Filtra</button>
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Orders/Index">Azzera</a>
+    </div>
+</form>
+
+<partial name="_OrderTable" model="Model.Orders" />

@@ -12,6 +12,8 @@
     <ProjectReference Include="..\Dusiburg.AI.O2C.Crm.Mcp\Dusiburg.AI.O2C.Crm.Mcp.csproj" />
     <ProjectReference Include="..\Dusiburg.AI.O2C.Orchestrator\Dusiburg.AI.O2C.Orchestrator.csproj" />
     <ProjectReference Include="..\Dusiburg.AI.O2C.Approvals.Web\Dusiburg.AI.O2C.Approvals.Web.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Crm.Web\Dusiburg.AI.O2C.Crm.Web.csproj" />
+    <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Web\Dusiburg.AI.O2C.Erp.Web.csproj" />
   </ItemGroup>
 
 </Project>

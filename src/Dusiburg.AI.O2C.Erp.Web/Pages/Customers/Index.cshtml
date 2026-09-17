@@ -1,0 +1,40 @@
+@page "/customers"
+@model Dusiburg.AI.O2C.Erp.Web.Pages.Customers.IndexModel
+@{
+    ViewData["Title"] = "Clienti";
+}
+
+<h1 class="h3 mb-3">Clienti</h1>
+
+<table class="table table-hover align-middle">
+    <thead>
+        <tr>
+            <th>Id</th>
+            <th>Ragione sociale</th>
+            <th>Partita IVA</th>
+            <th>Email</th>
+            <th class="text-end">Fido</th>
+            <th class="text-end">Ordini</th>
+            <th></th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var customer in Model.Customers)
+        {
+            <tr>
+                <td>@customer.CustomerId</td>
+                <td><a asp-page="/Customers/Details" asp-route-customerId="@customer.CustomerId">@customer.Name</a></td>
+                <td>@(customer.VatNumber ?? "—")</td>
+                <td>@customer.Email</td>
+                <td class="text-end text-nowrap">@customer.CreditLimit.ToString("N2") €</td>
+                <td class="text-end">@customer.OrderCount</td>
+                <td>
+                    @if (customer.IsBlocked)
+                    {
+                        <span class="badge text-bg-danger">bloccato</span>
+                    }
+                </td>
+            </tr>
+        }
+    </tbody>
+</table>

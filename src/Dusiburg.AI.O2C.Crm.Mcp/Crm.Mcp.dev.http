@@ -1,18 +1,39 @@
-# CRM mock — endpoint dev di Crm.Mcp (http://localhost:5103), solo in Development. Dati demo: docs/demo.md.
+# CRM mock — API utente (Fase 6) ed endpoint dev di Crm.Mcp (http://localhost:5103). Dati demo: docs/demo.md.
 
 @crm = http://localhost:5103
 
 ### Elenco dei deal con stage, revisione e stato O2C
-GET {{crm}}/dev/deals
+GET {{crm}}/api/views/deals
+
+### Deal vinti con approvazione pendente (filtri: stage, o2cStatus, companyId)
+GET {{crm}}/api/views/deals?stage=ClosedWon&o2cStatus=ApprovalPending
 
 ### Deal D-1001 con righe, revisione, stato O2C e note
-GET {{crm}}/dev/deals/D-1001
+GET {{crm}}/api/views/deals/D-1001
 
 ### Deal inesistente (404, code NOT_FOUND)
-GET {{crm}}/dev/deals/D-9999
+GET {{crm}}/api/views/deals/D-9999
 
-### Chiusura del deal: stage ClosedWon, revisione invariata (la pubblicazione sul broker arriva in Fase 4)
+### Aziende e deal di un'azienda
+GET {{crm}}/api/views/companies
+
+###
+GET {{crm}}/api/views/companies/C-02
+
+### Chiusura vinta: stage ClosedWon e evento deal-closed-won (409 se il deal è già chiuso)
+POST {{crm}}/api/deals/D-1001/close
+Content-Type: application/json
+
+{ "outcome": "Won" }
+
+### Chiusura persa: stage ClosedLost, nessun evento
+POST {{crm}}/api/deals/D-1007/close
+Content-Type: application/json
+
+{ "outcome": "Lost" }
+
+### Dev: chiude come vinto, oppure ripubblica l'evento di un deal già vinto
 POST {{crm}}/dev/deals/D-1001/close-won
 
-### Reset dei dati demo: aziende, deal e note del seed
+### Dev: reset dei dati demo (aziende, deal e note del seed)
 POST {{crm}}/dev/reset

@@ -60,20 +60,21 @@ Escludendo ERP e CRM, **l'unica dipendenza esterna realmente obbligatoria è l'e
 | `Erp.Mcp`, `Crm.Mcp` | Container .NET su rete locale | Container Apps | No |
 | `Orchestrator` | Container .NET | Container Apps | No |
 | `Approvals.Web` | Container .NET su localhost | Container Apps | No |
+| `Crm.Web`, `Erp.Web` (M26) | Container .NET su localhost, solo HTTP verso `Crm.Mcp` ed `Erp.Api` | Container Apps | No |
 | Messaggistica | RabbitMQ in container Docker dentro WSL, vhost `o2c`, exchange `deal-closed-won` (M7) | Service Bus | No |
 | Osservabilità | Aspire Dashboard (riceve OTLP nativamente) | Application Insights | No |
 | Identità agente | API key locali | Entra ID / Entra Agent ID | No per funzionare |
 | Approvazione umana | Pagina web `/approvals` | Teams Adaptive Card | No |
-| **Modello (LLM)** | Ollama + modello locale (vedi §3.3) | Claude via API Anthropic (M23); su Azure, Claude in Microsoft Foundry (Fase 6) | **Unico nodo reale** |
+| **Modello (LLM)** | Ollama + modello locale (vedi §3.3) | Claude via API Anthropic (M23); su Azure, Claude in Microsoft Foundry (Fase 7) | **Unico nodo reale** |
 
 ### 3.2 Topologia locale con .NET Aspire
 
-L'host locale di riferimento è un progetto **.NET Aspire AppHost** che compone in C# tutti i servizi — `Erp.Api`, `Erp.Mcp`, `Crm.Mcp`, `Orchestrator`, `Approvals.Web` e, opzionalmente, Ollama — gestendo service discovery e propagazione delle variabili d'ambiente fra loro. Database (LocalDB) e broker (RabbitMQ in WSL) entrano come **risorse esterne via connection string**, senza container gestiti da Aspire; l'AppHost tiene aperta una sessione WSL (`wsl -- docker start --attach rabbitmq`) perché il broker resti attivo mentre gira il POC (M2, M7).
+L'host locale di riferimento è un progetto **.NET Aspire AppHost** che compone in C# tutti i servizi — `Erp.Api`, `Erp.Mcp`, `Crm.Mcp`, `Orchestrator`, `Approvals.Web`, `Crm.Web`, `Erp.Web` e, opzionalmente, Ollama — gestendo service discovery e propagazione delle variabili d'ambiente fra loro. Database (LocalDB) e broker (RabbitMQ in WSL) entrano come **risorse esterne via connection string**, senza container gestiti da Aspire; l'AppHost tiene aperta una sessione WSL (`wsl -- docker start --attach rabbitmq`) perché il broker resti attivo mentre gira il POC (M2, M7).
 
 Due conseguenze rilevanti per il progetto:
 
 - Il dashboard Aspire riceve le tracce **OpenTelemetry** già cablate: il requisito di tracing di §12 è verificabile in locale, senza Application Insights.
-- Lo stesso AppHost si deploya su Azure Container Apps con `azd up`: la Fase 6 di §11 diventa un comando, non una riscrittura. Le Fasi 1–5 si sviluppano quindi interamente in locale.
+- Lo stesso AppHost si deploya su Azure Container Apps con `azd up`: la Fase 7 di §11 (deploy) diventa un comando, non una riscrittura. Le Fasi 1–6 si sviluppano quindi interamente in locale.
 
 ### 3.3 Modello: switch fra locale e cloud
 
@@ -81,7 +82,7 @@ L'Agent Framework è costruito sull'astrazione `IChatClient` di `Microsoft.Exten
 
 **Requisito implementativo**: l'orchestratore non deve avere dipendenze dirette dall'SDK di un provider — deve dipendere solo da `IChatClient`, con il provider risolto da configurazione (`MODEL_PROVIDER`).
 
-**Provider del POC (M23)**: `MODEL_PROVIDER=anthropic` (default) usa **Claude via API Anthropic**, modello `claude-sonnet-5`, con l'SDK ufficiale `Anthropic` per C# che espone un `IChatClient`; `MODEL_PROVIDER=ollama` usa Ollama nativo su Windows con `qwen3.5:9b` (OllamaSharp, anch'esso `IChatClient`). Azure OpenAI non è più previsto; in Fase 6 la variante su Azure è Claude in Microsoft Foundry, con la stessa famiglia di modelli.
+**Provider del POC (M23)**: `MODEL_PROVIDER=anthropic` (default) usa **Claude via API Anthropic**, modello `claude-sonnet-5`, con l'SDK ufficiale `Anthropic` per C# che espone un `IChatClient`; `MODEL_PROVIDER=ollama` usa Ollama nativo su Windows con `qwen3.5:9b` (OllamaSharp, anch'esso `IChatClient`). Azure OpenAI non è più previsto; in Fase 7 la variante su Azure è Claude in Microsoft Foundry, con la stessa famiglia di modelli.
 
 **Caveat tecnico**: il POC si regge su tool calling affidabile e output strutturato, che è esattamente la capacità dove i modelli piccoli (7–8B) diventano fragili — tool sbagliato, handoff mancato, JSON non conforme. Con un modello locale sottodimensionato si finisce a debuggare il modello invece dell'architettura. Servono modelli con tool calling solido (fascia 30B+ quantizzati in su) e hardware adeguato. In Fase 3 il modello locale su una GPU da 8 GB (`qwen3.5:9b`) viene **misurato** sul flusso reale, senza criteri di accettazione vincolanti (D12, D41): l'accettazione si fa sul modello cloud.
 
@@ -89,7 +90,7 @@ L'Agent Framework è costruito sull'astrazione `IChatClient` di `Microsoft.Exten
 
 ### 3.4 Cosa non è dimostrabile in locale
 
-Tre elementi richiedono il cloud, tutti irrilevanti per costruire e testare, tutti rilevanti in una demo enterprise: l'**identità dell'agente** come cittadino di prima classe (Entra Agent ID); l'**approvazione via Teams**, i cui callback delle Adaptive Card richiedono un endpoint pubblicamente raggiungibile (in locale servirebbe un dev tunnel, motivo per cui la pagina `/approvals` è la scelta giusta in sviluppo); lo **scale-to-zero e il runtime gestito**. Tutti e tre entrano in Fase 6.
+Tre elementi richiedono il cloud, tutti irrilevanti per costruire e testare, tutti rilevanti in una demo enterprise: l'**identità dell'agente** come cittadino di prima classe (Entra Agent ID); l'**approvazione via Teams**, i cui callback delle Adaptive Card richiedono un endpoint pubblicamente raggiungibile (in locale servirebbe un dev tunnel, motivo per cui la pagina `/approvals` è la scelta giusta in sviluppo); lo **scale-to-zero e il runtime gestito**. Tutti e tre entrano in Fase 7.
 
 ## 4\. Scenario funzionale del POC
 
@@ -159,6 +160,19 @@ Regole comuni ai due server:
 - Ogni tool ritorna **errori strutturati** (`{ error: { code, message } }`), mai eccezioni non gestite: l'agente deve poter ragionare sull'errore. Sul protocollo MCP (M22) l'errore è un risultato con `isError = true` e l'envelope come testo JSON, senza `structuredContent`; i risultati positivi hanno `structuredContent` conforme all'`outputSchema` del tool. Codici: `VALIDATION_ERROR`, `NOT_FOUND`, `CONFLICT`, `UNAUTHORIZED`, `UPSTREAM_UNAVAILABLE`, `INTERNAL`.
 - Nessun tool esegue più di un'operazione di scrittura: la granularità è deliberatamente fine per rendere l'approvazione selettiva.
 - `create_order` è l'unico tool marcato come **sensibile** e soggetto a intercettazione (§7).
+
+### 6\.3 API utente dei sistemi (M27)
+
+Oltre ai tool, i due sistemi espongono le API usate dalle loro UI (`Crm.Web`, `Erp.Web`, Fase 6). Non sono contratti per gli agenti: stanno sotto `/api/views`, separate dagli endpoint dei tool, e i servizi restano gli unici proprietari dei propri schemi (le UI non leggono il database).
+
+| Servizio | Endpoint | Scopo |
+| --- | --- | --- |
+| `Crm.Mcp` | `GET /api/views/deals?stage=&o2cStatus=&companyId=`, `GET /api/views/deals/{dealId}` | Deal con stage, revisione, stato O2C, righe e storico delle scritture di O2C |
+| `Crm.Mcp` | `GET /api/views/companies`, `GET /api/views/companies/{companyId}` | Aziende e loro deal |
+| `Crm.Mcp` | `POST /api/deals/{dealId}/close` `{ outcome: Won \| Lost }` | Chiusura del deal: ammessa solo da `ContractSent` (409 altrimenti), revisione invariata; `Won` pubblica `deal-closed-won` ed è l'ingresso del flusso (503 se il deal è chiuso ma l'evento non è partito), `Lost` non pubblica nulla |
+| `Erp.Api` | `GET /api/views/customers`, `/customers/{id}`, `/stock?shortOnly=`, `/orders?status=&customerId=`, `/orders/{orderNumber}` | Clienti, magazzino (disponibile = giacenza − riservato, anche negativo) e ordini ricevuti, in sola lettura |
+
+Le letture restituiscono al massimo 200 righe con ordinamento stabile; errori come ProblemDetails con `code` del catalogo. In locale non c'è autenticazione (come `/approvals`); in Fase 7 le API restano interne all'ambiente e le UI passano da Entra.
 
 ## 7\. Human\-in\-the\-loop
 
@@ -266,11 +280,14 @@ AI.POC-OrderToCash/
 │  ├─ Dusiburg.AI.O2C.Orchestration.Data/  # Stato dell'orchestrazione, schema orch: WorkflowState, ApprovalRequest, WorkflowCheckpoint (M11, M12)
 │  ├─ Dusiburg.AI.O2C.Orchestrator/        # Worker: agenti, handoff, policy di approvazione
 │  ├─ Dusiburg.AI.O2C.Approvals.Web/       # UI approvazioni + callback Teams
+│  ├─ Dusiburg.AI.O2C.Crm.Web/             # UI del CRM mock: deal, aziende, chiusura vinto/perso (M26)
+│  ├─ Dusiburg.AI.O2C.Erp.Web/             # UI dell'ERP in sola lettura: clienti, magazzino, ordini (M26)
 │  └─ Dusiburg.AI.O2C.Shared/              # DTO, contratti, helper idempotenza e correlazione
 ├─ tests/
 │  ├─ Dusiburg.AI.O2C.Erp.Api.Tests/
 │  ├─ Dusiburg.AI.O2C.Mcp.Tests/           # server MCP e CRM mock (M5)
-│  └─ Dusiburg.AI.O2C.Orchestrator.Tests/  # server MCP fake + modello stub, nessuna chiamata reale
+│  ├─ Dusiburg.AI.O2C.Orchestrator.Tests/  # server MCP fake + modello stub, nessuna chiamata reale
+│  └─ Dusiburg.AI.O2C.Web.Tests/           # Crm.Web ed Erp.Web con API a valle finte (M26)
 ├─ infra/                 # Bicep / azd
 └─ README.md
 ```
@@ -299,7 +316,7 @@ In locale l'AppHost passa database e broker ai servizi come connection string As
 
 ## 11\. Piano di implementazione per fasi
 
-Ogni fase è completa e verificabile prima di passare alla successiva. Le Fasi 1–5 si sviluppano e si verificano **interamente in locale** con l'AppHost Aspire di §3.2; la Fase 6 introduce il cloud.
+Ogni fase è completa e verificabile prima di passare alla successiva. Le Fasi 1–6 si sviluppano e si verificano **interamente in locale** con l'AppHost Aspire di §3.2; la Fase 7 introduce il cloud. La Fase 6 è stata aggiunta al piano originale (M26).
 
 **Fase 1 — Sistemi di base.** `Erp.Api` con modello dati, database creato da zero dal modello (nessuna migration, M17) e seed; collegamento al CRM (HubSpot o mock) verificato. \
 *Accettazione*\: si crea un ordine e si legge una giacenza via HTTP; il deal di test è leggibile dal CRM. Nessun agente coinvolto.
@@ -316,7 +333,9 @@ Ogni fase è completa e verificabile prima di passare alla successiva. Le Fasi 1
 **Fase 5 — Human\-in\-the\-loop.** `erp.create_order` come tool con approvazione richiesta, regole di §7 in una policy deterministica, persistenza di richieste e checkpoint, canale Teams o web, sospensione e ripresa del workflow. \
 *Accettazione*\: un deal sopra soglia genera una richiesta pendente e **nessun** ordine; dopo approvazione l'ordine viene creato una sola volta; dopo rifiuto nessun ordine e il deal CRM riporta lo stato di rifiuto; un riavvio del processo durante l'attesa non perde il workflow.
 
-**Fase 6 — Deploy e osservabilità.** Bicep/azd, Container Apps, identità Entra dedicata, tracing OpenTelemetry end\-to\-end. \
+**Fase 6 — UI dei sistemi (M26).** `Crm.Web` (deal, aziende, comandi Chiudi vinto / Chiudi perso) ed `Erp.Web` (clienti, magazzino, ordini ricevuti, sola lettura), Razor Pages sulle API di §6.3. \n*Accettazione*: da `Crm.Web` la chiusura vinta avvia il flusso e la pagina del deal ne mostra l'esito; l'ordine è visibile in `Erp.Web` con righe e backorder; la chiusura persa non avvia nulla; `Erp.Web` non scrive.
+
+**Fase 7 — Deploy e osservabilità.** Bicep/azd, Container Apps, identità Entra dedicata, tracing OpenTelemetry end\-to\-end. \
 *Accettazione*\: il flusso completo gira in Azure; in Application Insights una singola traccia correlata mostra la catena trigger → agenti → tool MCP → approvazione → creazione ordine.
 
 ## 12\. Requisiti non funzionali
@@ -392,7 +411,7 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M10 | §10 | Autenticazione locale al modello con `ANTHROPIC_API_KEY` negli user-secrets (invece dell'eventuale `AZURE_OPENAI_API_KEY`) | Applicata (Fase 3) |
 | M11 | §8, §10 | Progetto `src/Dusiburg.AI.O2C.Orchestration.Data` (DbContext `orch` condiviso con `Approvals.Web`); `WorkflowState` con PK `Id`, `CorrelationId` univoco, `(DealId, DealRevision)` univoco e lookup `WorkflowPhase`; schema creato da `DbInit` | Applicata (Fase 4) |
 | M12 | §7, §8, §10 | Sospensione e ripresa: `ApprovalRequest` con PK numerica e `PublicId` GUID, `ReasonsJson` (più motivi), `TraceParent`, `CheckpointId` e `RowVersion`; lookup `ApprovalStatus` e `ApprovalReason`; checkpoint del workflow su `orch.WorkflowCheckpoint`; messaggio `approval-decided` come acceleratore più sweep di riconciliazione; rifiuto e scadenza chiusi dall'host senza riaprire il workflow; `APPROVAL_TIMEOUT_HOURS` con decimali, `APPROVAL_SWEEP_MINUTES`, `Approvals__ApproverUpn` | Applicata (Fase 5) |
-| M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 6) |
+| M13 | §10 | Eventuale `MESSAGING_PROVIDER=rabbitmq\|servicebus` | Da decidere (Gate Fase 7) |
 | M14 | §10 | Repository `AI.POC-OrderToCash` (clone GitHub) invece di `o2c-agentic-poc` | Applicata (Fase 0) |
 | M15 | §10 | Progetti, cartelle e namespace con root name `Dusiburg.AI.O2C` (es. `src/Dusiburg.AI.O2C.Erp.Api`), solution `Dusiburg.AI.O2C.slnx` | Applicata (dopo Fase 0) |
 | M16 | §8 | Convenzioni di chiave: PK numerica `Id` e FK qualificate, niente PK GUID (`Order.PublicId` univoco), chiavi di business stringa come colonne univoche (`Product.Sku`, `Company.Code`, `Deal.Code`); contratti di §6 invariati | Applicata (Fase 1) |
@@ -402,6 +421,8 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M20 | §6.1 | `get_customer` restituisce `{ customer }`, con `customer: null` se il cliente non esiste (non è un errore) | Applicata (Fase 2) |
 | M21 | §10 | Progetto `src/Dusiburg.AI.O2C.Mcp.Hosting` con l'infrastruttura comune dei server MCP (API key, filtro sulle chiamate ai tool, errori strutturati), referenziato solo da `Erp.Mcp` e `Crm.Mcp` | Applicata (Fase 2) |
 | M22 | §6 | Errore di tool come risultato MCP `isError = true` con l'envelope `{ error: { code, message } }` come testo JSON; `structuredContent` solo per i risultati positivi | Applicata (Fase 2) |
-| M23 | §3.1, §3.3, §9, §10 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`, SDK `Anthropic` con `IChatClient`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`, chiavi `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`, Ollama nativo Windows con `qwen3.5:9b` misurato senza criteri vincolanti; Claude in Microsoft Foundry come variante Azure per la Fase 6 | Applicata (Fase 3) |
+| M23 | §3.1, §3.3, §9, §10 | Modello cloud Claude via API Anthropic (`claude-sonnet-5`, SDK `Anthropic` con `IChatClient`) invece di Azure OpenAI; `MODEL_PROVIDER=anthropic\|ollama`, chiavi `ANTHROPIC_API_KEY`/`ANTHROPIC_MODEL`, Ollama nativo Windows con `qwen3.5:9b` misurato senza criteri vincolanti; Claude in Microsoft Foundry come variante Azure per la Fase 7 (deploy, già Fase 6 prima di M26) | Applicata (Fase 3) |
 | M24 | §5, §10 | Workflow a tre agenti con l'handoff di Agent Framework: modalità autonoma con limite di turni, tool locali di verdetto (`report_discarded`, `report_failed`) e terminazione sui fatti del run; esiti `Discarded`/`Failed` verificati e scritti sul CRM dall'orchestratore; `O2C_AGENT_MODE=multi\|single`; trigger RabbitMQ con consumer idempotente su deal e revisione | Applicata (Fase 4) |
 | M25 | §6.1, §7, §8 | Le giacenze su cui decide la policy le verifica l'orchestratore sulle righe proposte, non l'agente; `create_order` restituisce `backorderNote` (cosa manca e in che quantità), conservata in `erp.Order.BackorderNote` e riportata come nota sul deal CRM. Emerso da un run dal vivo in cui `FulfillmentAgent` ha saltato `check_stock` e l'ordine è passato senza approvazione | Applicata (Fase 5) |
+| M26 | §3.1, §3.2, §10, §11 | Nuova Fase 6 "UI dei sistemi" (il deploy diventa Fase 7): progetti `Crm.Web` (porta 5105) ed `Erp.Web` (5106), solo HTTP verso i servizi proprietari dei dati, e `tests/Dusiburg.AI.O2C.Web.Tests` | Applicata (Fase 6) |
+| M27 | §3.1, §6.3 | API utente `/api/views` su `Crm.Mcp` ed `Erp.Api` e comando `POST /api/deals/{dealId}/close` (`Won` \| `Lost`) come ingresso del flusso; letture dev dei deal rimosse, `/dev/deals/{dealId}/close-won` resta per ripubblicare l'evento | Applicata (Fase 6) |

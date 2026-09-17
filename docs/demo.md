@@ -18,9 +18,9 @@ Per ripetere la demo senza ricreare il database (solo in Development):
 | Servizio | Endpoint | Effetto |
 |----------|----------|---------|
 | Erp.Api | `POST http://localhost:5101/dev/reset` | Cancella gli ordini e ripristina clienti, prodotti e giacenze del seed; la numerazione degli ordini riparte da `SO-yyyy-000001` |
-| Crm.Mcp | `POST http://localhost:5103/dev/reset` | Ripristina aziende e deal del seed: stage `ContractSent`, revisione 1, nessuno stato O2C né note |
+| Crm.Mcp | `POST http://localhost:5103/dev/reset` | Ripristina aziende e deal del seed: stage `ContractSent`, revisione 1, nessuno stato O2C né note (anche i deal chiusi come persi) |
 
-> I due reset **non** toccano lo schema `orch`: `WorkflowState`, `ApprovalRequest` e `WorkflowCheckpoint` restano. Senza pulirli, un nuovo `close-won` sulla stessa revisione viene riconosciuto come duplicato e non riparte alcun workflow. Per ripartire davvero da zero conviene rieseguire `DbInit`; in alternativa, cancellare le righe delle tre tabelle.
+> I due reset **non** toccano lo schema `orch`: `WorkflowState`, `ApprovalRequest` e `WorkflowCheckpoint` restano. Senza pulirli, una nuova chiusura vinta sulla stessa revisione viene riconosciuto come duplicato e non riparte alcun workflow. Per ripartire davvero da zero conviene rieseguire `DbInit`; in alternativa, cancellare le righe delle tre tabelle.
 
 Le richieste pronte sono in `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` e `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http`.
 
@@ -97,31 +97,37 @@ Sull'ordine vale il prezzo unitario del deal, non il listino (D21).
 
 ## Script della demo
 
-Il trigger è sempre lo stesso: l'endpoint dev del CRM che simula il webhook `deal-closed-won` (porta il deal a `ClosedWon`, incrementa la revisione e pubblica l'evento). L'orchestratore consuma dalla coda e lavora da solo.
+La demo si fa dal browser, con tre UI collegate fra loro (Fase 6):
+
+| UI | Indirizzo | Cosa serve |
+|----|-----------|------------|
+| **Crm.Web** | http://localhost:5105 | Deal e aziende; sul dettaglio di un deal aperto i comandi **Chiudi vinto** (avvia il flusso) e **Chiudi perso** |
+| **Erp.Web** | http://localhost:5106 | Clienti, magazzino e ordini ricevuti, in sola lettura |
+| **Approvals.Web** | http://localhost:5104/approvals | Coda delle approvazioni pendenti |
+
+**Chiudi vinto** porta il deal a `ClosedWon` (la revisione non cambia) e pubblica `deal-closed-won`; l'orchestratore consuma dalla coda e lavora da solo. La pagina del deal si aggiorna ogni 5 secondi finché il flusso non ha un esito finale (resta in aggiornamento anche con `ApprovalPending`) e mostra lo storico delle scritture di O2C, il link all'ordine in `Erp.Web` e quello alle richieste di approvazione del deal. Un secondo comando di chiusura sullo stesso deal risponde "già chiuso" e non pubblica nulla.
+
+In alternativa alla UI restano gli script (solo in Development):
 
 ```powershell
 $deal = "D-1001"
+Invoke-RestMethod -Method Post "http://localhost:5103/api/deals/$deal/close" -ContentType application/json -Body '{ "outcome": "Won" }'
+# oppure, per ripubblicare l'evento di un deal già vinto:
 Invoke-RestMethod -Method Post "http://localhost:5103/dev/deals/$deal/close-won"
 ```
 
-Dopo ogni passo si guardano tre posti:
-
-| Dove | Cosa |
-|------|------|
-| Log dell'orchestratore nel dashboard | La riga finale `Deal … elaborato (multi) con …: <esito> <numero ordine>` |
-| `GET http://localhost:5103/dev/deals/{dealId}` | Stato O2C del deal e note scritte dagli agenti o dall'host |
-| `http://localhost:5104/approvals` | Coda delle approvazioni pendenti |
+Dopo ogni passo si guardano tre posti: la pagina del deal in `Crm.Web`, l'ordine e il magazzino in `Erp.Web`, la coda in `Approvals.Web`. Nel dashboard, la riga finale del log dell'orchestratore `Deal … elaborato (multi) con …: <esito> <numero ordine>`.
 
 ### 1. D-1001 — percorso felice, nessuna approvazione
 
-`close-won` su D-1001 → in circa 20 s il deal è `OrderCreated` con il numero d'ordine nella nota, e in `/approvals` **non** compare nulla: la policy non ha chiesto niente e il workflow non si è mai fermato.
+**Chiudi vinto** su D-1001 → in circa 20 s la pagina del deal (senza intervento) mostra `OrderCreated` e il numero d'ordine; il link apre l'ordine in `Erp.Web` con righe e totale, e il magazzino mostra la riserva (es. `IND-BRG-001` riservato da 20 a 60). In `/approvals` **non** compare nulla.
 
 ### 2. D-1002 — approvazione per soglia, poi approva
 
-1. `close-won` su D-1002.
-2. Il deal diventa `ApprovalPending` con la nota `Approvazione richiesta: OverThreshold. Totale 10.832,00 EUR.` In ERP **non** c'è alcun ordine.
-3. `/approvals` mostra una riga pendente; aprendola si vedono righe, totale, giacenze, cliente e chiave di idempotenza.
-4. **Approva** con una nota → il workflow riprende dal checkpoint, crea l'ordine e porta il deal a `OrderCreated`.
+1. **Chiudi vinto** su D-1002.
+2. Il deal diventa `ApprovalPending` con la nota `Approvazione richiesta: OverThreshold. Totale 10.832,00 EUR.` In `Erp.Web` **non** c'è alcun ordine.
+3. Il link "Richieste del deal" apre la richiesta in `/approvals`; aprendola si vedono righe, totale, giacenze, cliente e chiave di idempotenza, e il link riporta al deal in `Crm.Web`.
+4. **Approva** con una nota → il workflow riprende dal checkpoint, crea l'ordine e la pagina del deal passa a `OrderCreated`.
 
 ### 3. D-1003, D-1004, D-1005, D-1008 — gli altri motivi
 
@@ -129,9 +135,9 @@ Stessa sequenza, con i motivi attesi:
 
 | Deal | Motivi attesi in `/approvals` |
 |------|-------------------------------|
-| D-1003 | `InsufficientStock` (IND-MOT-003: 5 richiesti, 3 disponibili). Dopo l'approvazione l'ordine nasce in **Backorder** e il deal riporta la nota `Da approvvigionare — IND-MOT-003: 2 PZ da ordinare` |
-| D-1004 | `NewCustomer` (l'anagrafica ERP viene creata prima della sospensione) |
-| D-1005 | `BlockedCustomer` |
+| D-1003 | `InsufficientStock` (IND-MOT-003: 5 richiesti, 3 disponibili). Dopo l'approvazione l'ordine nasce in **Backorder**: `Erp.Web` mostra la nota `IND-MOT-003: 2 PZ da ordinare` e, in magazzino, `IND-MOT-003` con riservato oltre la giacenza (evidenziato in rosso); il deal riporta la nota `Da approvvigionare — IND-MOT-003: 2 PZ da ordinare` |
+| D-1004 | `NewCustomer` (l'anagrafica ERP viene creata prima della sospensione e compare subito fra i clienti di `Erp.Web`) |
+| D-1005 | `BlockedCustomer` (in `Erp.Web` il cliente ha il badge "bloccato") |
 | D-1008 | `OverThreshold` **e** `NewCustomer` |
 
 ### 4. Rifiuto
@@ -144,14 +150,18 @@ Avviare l'AppHost con `--APPROVAL_TIMEOUT_HOURS 0.02 --APPROVAL_SWEEP_MINUTES 0.
 
 ### 6. Riavvio durante l'attesa
 
-1. `close-won` su un deal che richiede approvazione e attendere la riga pendente in `/approvals`.
+1. **Chiudi vinto** su un deal che richiede approvazione e attendere la riga pendente in `/approvals`.
 2. Fermare l'orchestratore dal dashboard (o riavviare l'AppHost).
 3. Approvare dalla UI: il messaggio `approval-decided` arriva al nuovo processo — e se anche si perdesse, la sweep di riconciliazione trova la richiesta decisa con il workflow ancora in `AwaitingApproval`. L'ordine viene creato una volta sola, con la stessa chiave di idempotenza.
 
 ### 7. D-1006 e D-1007 — gli esiti di arresto
 
-`close-won` su D-1006 → `Discarded` (valuta USD, verificata dall'host sui dati del deal). Su D-1007 → `Failed` (`IND-SEN-999` non esiste in ERP). In nessuno dei due casi si passa dall'approvazione.
+**Chiudi vinto** su D-1006 → `Discarded` (valuta USD, verificata dall'host sui dati del deal). Su D-1007 → `Failed` (`IND-SEN-999` non esiste in ERP). In nessuno dei due casi si passa dall'approvazione.
+
+### 8. Chiudi perso
+
+**Chiudi perso** su un deal aperto → stage `ClosedLost`, nessun messaggio su `deal-closed-won`, nessun workflow e nessuna nota di O2C. Il deal non si può più chiudere come vinto (serve il reset).
 
 ### Dove guardare nel dashboard
 
-Nelle tracce, una richiesta approvata produce una catena unica: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` di Intake, Fulfillment e Order con i loro `agent.handoff` e `tool.call` → `approval.requested` (con `approval.reasons`) → `approval.decided` (con `approval.decision` e `approval.decided_by`, da Approvals.Web) → `approval.resume` → `tool.call erp.create_order`. La ripresa si riattacca al contesto salvato in `ApprovalRequest.TraceParent`, quindi anche dopo ore resta lo stesso trace id (G5.4).
+Nelle tracce, una richiesta approvata produce una catena unica: la richiesta HTTP di `crm-web` → `crm.deal.close` (con `deal.close.outcome`) → `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` di Intake, Fulfillment e Order con i loro `agent.handoff` e `tool.call` → `approval.requested` (con `approval.reasons`) → `approval.decided` (con `approval.decision` e `approval.decided_by`, da Approvals.Web) → `approval.resume` → `tool.call erp.create_order`. Il `correlation.id` nasce dalla richiesta di `Crm.Web` e arriva invariato al workflow. La ripresa si riattacca al contesto salvato in `ApprovalRequest.TraceParent`, quindi anche dopo ore resta lo stesso trace id (G5.4).

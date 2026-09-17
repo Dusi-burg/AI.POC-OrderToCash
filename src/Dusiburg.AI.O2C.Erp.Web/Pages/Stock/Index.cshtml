@@ -1,0 +1,70 @@
+@page "/stock"
+@model Dusiburg.AI.O2C.Erp.Web.Pages.Stock.IndexModel
+@{
+    ViewData["Title"] = "Magazzino";
+}
+
+<div class="d-flex justify-content-between align-items-center mb-3">
+    <h1 class="h3 mb-0">Magazzino</h1>
+    @if (Model.ShortOnly)
+    {
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Stock/Index">Tutti i prodotti</a>
+    }
+    else
+    {
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Stock/Index" asp-route-shortOnly="true">Solo sotto scorta</a>
+    }
+</div>
+
+<p class="text-muted">
+    Disponibile = giacenza − riservato. <span class="badge text-bg-warning">sotto scorta</span> disponibile ≤ 0;
+    <span class="badge text-bg-danger">oltre giacenza</span> riservato maggiore della giacenza, per ordini in backorder da approvvigionare.
+</p>
+
+@if (Model.Items.Count == 0)
+{
+    <p class="text-muted">Nessun prodotto @(Model.ShortOnly ? "sotto scorta" : "a catalogo").</p>
+}
+else
+{
+    <table class="table table-sm align-middle">
+        <thead>
+            <tr>
+                <th>SKU</th>
+                <th>Descrizione</th>
+                <th>UdM</th>
+                <th class="text-end">Listino</th>
+                <th class="text-end">Giacenza</th>
+                <th class="text-end">Riservato</th>
+                <th class="text-end">Disponibile</th>
+                <th class="text-end">Lead time</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var item in Model.Items)
+            {
+                <tr class="@ErpPresentation.StockRowClass(item)" data-sku="@item.Sku">
+                    <td><code>@item.Sku</code></td>
+                    <td>@item.Description</td>
+                    <td>@item.Uom</td>
+                    <td class="text-end">@item.ListPrice.ToString("N2") €</td>
+                    <td class="text-end">@item.OnHand</td>
+                    <td class="text-end">@item.Reserved</td>
+                    <td class="text-end fw-bold">@item.Available</td>
+                    <td class="text-end">@item.LeadTimeDays gg</td>
+                    <td>
+                        @if (ErpPresentation.IsOverReserved(item))
+                        {
+                            <span class="badge text-bg-danger">oltre giacenza</span>
+                        }
+                        else if (ErpPresentation.IsShort(item))
+                        {
+                            <span class="badge text-bg-warning">sotto scorta</span>
+                        }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

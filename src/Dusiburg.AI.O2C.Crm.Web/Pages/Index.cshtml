@@ -1,0 +1,67 @@
+@page
+@model IndexModel
+@{
+    ViewData["Title"] = "CRM";
+    var dashboard = Model.Dashboard;
+}
+
+<h1 class="h3 mb-3">CRM — pipeline commerciale</h1>
+<p class="text-muted">Il CRM mock della demo: chiudere un deal come vinto avvia il flusso Order-to-Cash agentico.</p>
+
+<div class="row g-3 mb-4">
+    @foreach (var (stage, count) in dashboard.ByStage)
+    {
+        <div class="col-sm-3">
+            <a class="card text-decoration-none h-100" asp-page="/Deals/Index" asp-route-stage="@stage">
+                <div class="card-body">
+                    <div class="text-muted small">@DealPresentation.StageLabel(stage)</div>
+                    <div class="display-6">@count</div>
+                </div>
+            </a>
+        </div>
+    }
+    <div class="col-sm-3">
+        <a class="card text-decoration-none h-100" asp-page="/Companies/Index">
+            <div class="card-body">
+                <div class="text-muted small">Aziende</div>
+                <div class="display-6">@dashboard.CompanyCount</div>
+            </div>
+        </a>
+    </div>
+</div>
+
+<div class="row g-4">
+    <div class="col-md-4">
+        <h2 class="h5">Stato O2C</h2>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var (status, count) in dashboard.ByStatus)
+                {
+                    <tr>
+                        <td>@status</td>
+                        <td class="text-end">@count</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-8">
+        <h2 class="h5">Flussi in corso</h2>
+        @if (dashboard.InFlight.Count == 0)
+        {
+            <p class="text-muted">Nessun deal vinto in attesa di esito.</p>
+        }
+        else
+        {
+            <ul class="list-group">
+                @foreach (var deal in dashboard.InFlight)
+                {
+                    <li class="list-group-item d-flex justify-content-between align-items-center">
+                        <span><a asp-page="/Deals/Details" asp-route-dealId="@deal.DealId">@deal.DealId</a> — @deal.Name</span>
+                        <span class="badge @DealPresentation.StatusClass(deal.O2CStatus)">@(deal.O2CStatus?.ToString() ?? "in elaborazione")</span>
+                    </li>
+                }
+            </ul>
+        }
+    </div>
+</div>

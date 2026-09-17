@@ -6,16 +6,26 @@
 }
 
 <div class="d-flex justify-content-between align-items-center mb-3">
-    <h1 class="h3 mb-0">Approvazioni</h1>
+    <h1 class="h3 mb-0">
+        Approvazioni
+        @if (Model.DealId is { Length: > 0 } dealFilter)
+        {
+            <small class="text-muted" id="deal-filter">deal @dealFilter</small>
+        }
+    </h1>
     <div>
         <span class="text-muted me-3">Approvatore: <code>@Model.Approver</code></span>
+        @if (Model.DealId is { Length: > 0 })
+        {
+            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index">Tutti i deal</a>
+        }
         @if (Model.ShowAll)
         {
-            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index">Solo pendenti</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index" asp-route-dealId="@Model.DealId">Solo pendenti</a>
         }
         else
         {
-            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index" asp-route-all="true">Tutte</a>
+            <a class="btn btn-outline-secondary btn-sm" asp-page="/Approvals/Index" asp-route-all="true" asp-route-dealId="@Model.DealId">Tutte</a>
         }
     </div>
 </div>

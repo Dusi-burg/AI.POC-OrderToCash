@@ -22,6 +22,7 @@ public static class O2CTelemetry
         public const string ToolOutcome = "tool.outcome";
         public const string DealId = "deal.id";
         public const string DealOutcome = "o2c.outcome";
+        public const string DealCloseOutcome = "deal.close.outcome";
         public const string HandoffFrom = "handoff.from";
         public const string HandoffTo = "handoff.to";
         public const string HandoffReason = "handoff.reason";

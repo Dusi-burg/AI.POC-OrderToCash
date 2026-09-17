@@ -113,7 +113,7 @@ Note:
 | Aspetto | Scelta | Conseguenza |
 |---------|--------|-------------|
 | SDK | `ModelContextProtocol.AspNetCore` **2.2.0** | Protocollo negoziato `2026-07-28`: niente handshake `initialize`, ogni richiesta è autonoma |
-| Trasporto | Streamable HTTP, **stateless** (`POST /mcp`) | Nessuna sessione in memoria, nessuna affinità: pronto per più istanze in Container Apps (Fase 6) |
+| Trasporto | Streamable HTTP, **stateless** (`POST /mcp`) | Nessuna sessione in memoria, nessuna affinità: pronto per più istanze in Container Apps (Fase 7) |
 | Nomi dei tool | Quelli di §6, **senza prefisso** | Compatibili con i nomi di funzione dei modelli (R5); il nome qualificato `erp.create_order` lo comporrà l'orchestratore |
 | Risultato positivo | `structuredContent` conforme all'`outputSchema` + stesso JSON come testo | Il client può leggere l'oggetto senza parsing; lo schema è pubblicato in `tools/list` |
 | Errore | `isError = true`, envelope **solo come testo JSON** (D33) | Nessuna violazione dell'`outputSchema`; l'agente legge `code` e `message` |
@@ -453,8 +453,8 @@ flowchart LR
 | Retry della resilienza su `POST` | Sicuro per `create_order` (idempotente); per `create_customer` un retry dopo una risposta persa dà `CONFLICT` | Accettato per il POC |
 | `agent.name` sugli span | Assente: il server non conosce l'agente | Span dell'orchestratore in Fase 3 |
 | Span di `tools/list` | Solo lo span HTTP `POST /mcp` | Se servirà |
-| Endpoint non protetti | `/`, `/health`, `/alive`, `/dev/*` senza API key (tutti tranne `/` solo in Development) | Identità Entra in Fase 6 |
-| API key condivisa | Una chiave per server, uguale per ogni client | Identità dedicata dell'agente in Fase 6 |
+| Endpoint non protetti | `/`, `/health`, `/alive`, `/dev/*` senza API key (tutti tranne `/` solo in Development) | Identità Entra in Fase 7 |
+| API key condivisa | Una chiave per server, uguale per ogni client | Identità dedicata dell'agente in Fase 7 |
 | MCP Inspector | Documentato nel README, non usato nelle verifiche | Opzionale (G2.4) |
 | Enforcement di `o2c.sensitive` | Solo metadata: il server esegue `create_order` a ogni chiamata valida | **Fase 5** (policy di approvazione) |
 | Client MCP nell'orchestratore, agente, `IChatClient` | — | **Fase 3** (stesse regole JSON di D38 lato client) |

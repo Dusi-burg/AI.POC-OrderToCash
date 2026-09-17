@@ -1,4 +1,5 @@
 using Dusiburg.AI.O2C.Crm.Data.Entities;
+using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 using Dusiburg.AI.O2C.Shared.Demo;
 using Microsoft.EntityFrameworkCore;
 

@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <!-- Runner NUnit su Microsoft.Testing.Platform, come impostato in global.json -->
+    <EnableNUnitRunner>true</EnableNUnitRunner>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Using Include="NUnit.Framework" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="NUnit" />
+    <PackageReference Include="NUnit3TestAdapter" />
+    <PackageReference Include="NUnit.Analyzers" PrivateAssets="all" />
+    <PackageReference Include="Microsoft.Testing.Extensions.CodeCoverage" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- UI dei due sistemi (6.11) in-process, con le API a valle sostituite da un handler HTTP finto: nessun database né broker -->
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Crm.Web\Dusiburg.AI.O2C.Crm.Web.csproj" />
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Erp.Web\Dusiburg.AI.O2C.Erp.Web.csproj" />
+  </ItemGroup>
+
+</Project>

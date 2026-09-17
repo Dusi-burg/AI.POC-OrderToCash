@@ -1,0 +1,12 @@
+<Project Sdk="Microsoft.NET.Sdk.Web">
+
+  <!-- UI del sistema (Fase 6, D58): nessun accesso al database né al broker, solo HTTP verso il servizio proprietario dei dati -->
+  <ItemGroup>
+    <ProjectReference Include="..\Dusiburg.AI.O2C.ServiceDefaults\Dusiburg.AI.O2C.ServiceDefaults.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="Dusiburg.AI.O2C.Web.Tests" />
+  </ItemGroup>
+
+</Project>

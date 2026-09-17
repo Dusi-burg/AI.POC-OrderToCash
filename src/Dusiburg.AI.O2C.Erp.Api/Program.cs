@@ -2,6 +2,7 @@ using Dusiburg.AI.O2C.Erp.Api.Customers;
 using Dusiburg.AI.O2C.Erp.Api.Dev;
 using Dusiburg.AI.O2C.Erp.Api.Orders;
 using Dusiburg.AI.O2C.Erp.Api.Stock;
+using Dusiburg.AI.O2C.Erp.Api.Views;
 using Dusiburg.AI.O2C.Erp.Data;
 using Dusiburg.AI.O2C.ServiceDefaults.Problems;
 
@@ -14,8 +15,12 @@ builder.AddServiceDefaults();
 builder.AddSqlServerDbContext<ErpDbContext>("sql");
 
 builder.Services.AddProblemDetails(ToolProblems.Configure);
+builder.Services.Configure<ExceptionHandlerOptions>(ToolProblems.ConfigureExceptionHandler);
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddScoped<OrderService>();
+
+// Letture per Erp.Web (Fase 6), in sola lettura.
+builder.Services.AddScoped<ErpViewQueries>();
 
 var app = builder.Build();
 
@@ -30,7 +35,8 @@ app.MapGet("/", () => new { service = "Dusiburg.AI.O2C.Erp.Api", phase = 1 });
 app.MapGroup("/api")
     .MapCustomerEndpoints()
     .MapStockEndpoints()
-    .MapOrderEndpoints();
+    .MapOrderEndpoints()
+    .MapErpViewEndpoints();
 
 if (app.Environment.IsDevelopment())
 {

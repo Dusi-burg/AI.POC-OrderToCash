@@ -10,8 +10,9 @@ namespace Dusiburg.AI.O2C.Crm.Mcp.Messaging;
 /// Pubblica <c>deal-closed-won</c> (4.5, G4.3): simula il webhook del CRM verso l'ingestion. Il correlation id del workflow nasce qui.
 /// </summary>
 public sealed class DealEventPublisher(IConnection connection, ICorrelationContext correlationContext, ILogger<DealEventPublisher> logger)
+    : IDealEventPublisher
 {
-    /// <summary>Pubblica l'evento e restituisce il correlation id assegnato al workflow.</summary>
+    /// <inheritdoc />
     public async Task<string> PublishClosedWonAsync(DealClosedWon message, CancellationToken cancellationToken)
     {
         var correlationId = correlationContext.Current ?? CorrelationId.New();

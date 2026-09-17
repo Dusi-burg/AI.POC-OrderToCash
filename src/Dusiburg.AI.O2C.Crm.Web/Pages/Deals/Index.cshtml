@@ -1,0 +1,40 @@
+@page "/deals"
+@model Dusiburg.AI.O2C.Crm.Web.Pages.Deals.IndexModel
+@{
+    ViewData["Title"] = "Deal";
+}
+
+<h1 class="h3 mb-3">Deal</h1>
+
+<form method="get" class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label" for="Stage">Stage</label>
+        <select class="form-select form-select-sm" asp-for="Stage">
+            <option value="">Tutti</option>
+            @foreach (var stage in Enum.GetValues<DealStage>())
+            {
+                <option value="@stage" selected="@(Model.Stage == stage)">@DealPresentation.StageLabel(stage)</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="O2CStatus">Stato O2C</label>
+        <select class="form-select form-select-sm" asp-for="O2CStatus">
+            <option value="">Tutti</option>
+            @foreach (var status in Enum.GetValues<DealStatus>())
+            {
+                <option value="@status" selected="@(Model.O2CStatus == status)">@status</option>
+            }
+        </select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label" for="CompanyId">Azienda</label>
+        <input class="form-control form-control-sm" asp-for="CompanyId" placeholder="es. C-01" />
+    </div>
+    <div class="col-auto">
+        <button class="btn btn-primary btn-sm" type="submit">Filtra</button>
+        <a class="btn btn-outline-secondary btn-sm" asp-page="/Deals/Index">Azzera</a>
+    </div>
+</form>
+
+<partial name="_DealTable" model="Model.Deals" />

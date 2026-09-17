@@ -2,17 +2,6 @@ using Dusiburg.AI.O2C.Shared.Contracts.Crm;
 
 namespace Dusiburg.AI.O2C.Crm.Data.Entities;
 
-/// <summary>
-/// Stage commerciale del deal nel CRM mock. Valori espliciti: sono le PK della tabella di lookup <c>crm.DealStage</c> (tinyint).
-/// Il contratto <c>get_deal</c> lo espone per nome.
-/// </summary>
-public enum DealStage : byte
-{
-    ContractSent = 1,
-    ClosedWon = 2,
-    ClosedLost = 3
-}
-
 public sealed class Company
 {
     public int Id { get; set; }

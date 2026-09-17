@@ -1,4 +1,5 @@
 using Dusiburg.AI.O2C.Shared.Errors;
+using Microsoft.AspNetCore.Builder;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Http.HttpResults;
 
@@ -24,6 +25,9 @@ public static class ToolProblems
     public static ProblemHttpResult Unauthorized(string detail) =>
         Create(StatusCodes.Status401Unauthorized, ToolErrorCodes.Unauthorized, "Non autorizzato", detail);
 
+    public static ProblemHttpResult UpstreamUnavailable(string detail) =>
+        Create(StatusCodes.Status503ServiceUnavailable, ToolErrorCodes.UpstreamUnavailable, "Servizio a valle non disponibile", detail);
+
     /// <summary>
     /// Per <c>AddProblemDetails</c>: dà un <c>code</c> anche ai ProblemDetails generati dal framework
     /// (binding non valido, eccezioni non gestite), in base allo status.
@@ -36,8 +40,17 @@ public static class ToolProblems
                 StatusCodes.Status401Unauthorized => ToolErrorCodes.Unauthorized,
                 StatusCodes.Status404NotFound => ToolErrorCodes.NotFound,
                 StatusCodes.Status409Conflict => ToolErrorCodes.Conflict,
+                StatusCodes.Status503ServiceUnavailable => ToolErrorCodes.UpstreamUnavailable,
                 _ => ToolErrorCodes.Internal
             });
+
+    /// <summary>
+    /// Per <c>UseExceptionHandler</c>: un corpo JSON illeggibile resta un 400. In Development le Minimal API lanciano
+    /// <see cref="BadHttpRequestException"/> invece di rispondere, e senza questo selettore diventerebbe un 500.
+    /// </summary>
+    public static void ConfigureExceptionHandler(ExceptionHandlerOptions options) =>
+        options.StatusCodeSelector = exception =>
+            exception is BadHttpRequestException badRequest ? badRequest.StatusCode : StatusCodes.Status500InternalServerError;
 
     private static ProblemHttpResult Create(int statusCode, string code, string title, string detail) =>
         TypedResults.Problem(

@@ -1,4 +1,10 @@
-﻿<!DOCTYPE html>
+﻿@using Dusiburg.AI.O2C.ServiceDefaults.Portal
+@using Microsoft.Extensions.Options
+@inject IOptions<PortalLinks> PortalLinksOptions
+@{
+    var links = PortalLinksOptions.Value;
+}
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -26,6 +32,16 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-area="" asp-page="/Approvals/Index">Approvazioni</a>
                         </li>
+                    </ul>
+                    <ul class="navbar-nav">
+                        @if (links.CrmWeb is { Length: > 0 } crmWeb)
+                        {
+                            <li class="nav-item"><a class="nav-link text-dark" href="@crmWeb">CRM</a></li>
+                        }
+                        @if (links.ErpWeb is { Length: > 0 } erpWeb)
+                        {
+                            <li class="nav-item"><a class="nav-link text-dark" href="@erpWeb">ERP</a></li>
+                        }
                     </ul>
                 </div>
             </div>

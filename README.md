@@ -21,6 +21,8 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 | `src/Dusiburg.AI.O2C.Mcp.Hosting` | Infrastruttura comune dei server MCP: API key, filtro sulle chiamate ai tool, errori strutturati |
 | `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agenti, handoff, policy di approvazione |
 | `src/Dusiburg.AI.O2C.Approvals.Web` | UI delle approvazioni |
+| `src/Dusiburg.AI.O2C.Crm.Web` | UI del CRM mock: deal, aziende, comandi Chiudi vinto / Chiudi perso (Fase 6) |
+| `src/Dusiburg.AI.O2C.Erp.Web` | UI dell'ERP in sola lettura: clienti, magazzino, ordini ricevuti (Fase 6) |
 | `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
 | `tools/Dusiburg.AI.O2C.DbInit` | Crea da zero il database `O2C` dal modello EF (niente migration) |
 | `tests/*` | NUnit 4 con `Assert.That` (runner NUnit su Microsoft.Testing.Platform) |
@@ -85,6 +87,8 @@ $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusibur
 | Erp.Mcp | http://localhost:5102 |
 | Crm.Mcp | http://localhost:5103 |
 | Approvals.Web | http://localhost:5104 |
+| Crm.Web | http://localhost:5105 |
+| Erp.Web | http://localhost:5106 |
 | RabbitMQ management | http://localhost:15672 |
 
 Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in Development).
