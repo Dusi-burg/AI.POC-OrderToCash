@@ -58,7 +58,8 @@ orchestrator.WithConfigurationEnvironment(
     "O2C_AGENT_MODE",
     "APPROVAL_THRESHOLD_EUR",
     "APPROVAL_TIMEOUT_HOURS",
-    "APPROVAL_SWEEP_MINUTES");
+    "APPROVAL_SWEEP_MINUTES",
+    "O2C_PROMPT_CAPTURE_DIR");
 
 var approvals = builder.AddProject<Projects.Dusiburg_AI_O2C_Approvals_Web>("approvals-web")
     .WithReference(sql)

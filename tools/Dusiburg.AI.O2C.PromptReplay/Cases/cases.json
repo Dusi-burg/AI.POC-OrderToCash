@@ -1,0 +1,38 @@
+[
+  {
+    "name": "fulfillment-d1003-compact-immediately",
+    "capture": "fulfillment-d1003-compact-immediately.json",
+    "expectedFirstCall": "check_stock",
+    "description": "D-1003, qwen3.5:9b: IntakeAgent chiude con il calcolo compatto e '…I'll hand off to FulfillmentAgent immediately.'. Senza filtro FulfillmentAgent passava la mano 20 volte su 20 (D62)."
+  },
+  {
+    "name": "fulfillment-d1003-lines",
+    "capture": "fulfillment-d1003-lines.json",
+    "expectedFirstCall": "check_stock",
+    "description": "D-1003, qwen3.5:9b: calcolo riga per riga e '…I'll hand off to FulfillmentAgent.'. Caso di controllo: verificava anche senza filtro."
+  },
+  {
+    "name": "fulfillment-d1003-so-i-can",
+    "capture": "fulfillment-d1003-so-i-can.json",
+    "expectedFirstCall": "check_stock",
+    "description": "D-1003, qwen3.5:9b: IntakeAgent chiude con '…so I can hand off to FulfillmentAgent.', la formulazione che più spesso faceva saltare la verifica."
+  },
+  {
+    "name": "fulfillment-d1001-so-i-can",
+    "capture": "fulfillment-d1001-so-i-can.json",
+    "expectedFirstCall": "check_stock",
+    "description": "D-1001, qwen3.5:9b: stessa chiusura su un deal tutto disponibile."
+  },
+  {
+    "name": "fulfillment-d1007-so-i-can",
+    "capture": "fulfillment-d1007-so-i-can.json",
+    "expectedFirstCall": "check_stock",
+    "description": "D-1007 (SKU inesistente), qwen3.5:9b: il caso da cui è partita l'analisi (D61, D62)."
+  },
+  {
+    "name": "order-d1003-after-fulfillment-summary",
+    "capture": "order-d1003-after-fulfillment-summary.json",
+    "expectedFirstCall": "get_customer",
+    "description": "D-1003, qwen3.5:9b: OrderAgent riceve il riassunto delle giacenze di FulfillmentAgent ('IND-MOT-003: available = false…'). Deve partire dal cliente, senza farsi guidare dal riassunto."
+  }
+]

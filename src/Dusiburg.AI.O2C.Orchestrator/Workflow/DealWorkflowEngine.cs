@@ -62,8 +62,8 @@ public sealed class DealWorkflowEngine(
         var agents = WorkflowAgents.All.ToDictionary(a => a.Name, a => CreateAgent(a, model, tools, context));
 
         var workflow = AgentWorkflowBuilder.CreateHandoffBuilderWith(agents[WorkflowAgents.Intake.Name])
-            .WithHandoff(agents[WorkflowAgents.Intake.Name], agents[WorkflowAgents.Fulfillment.Name], "The deal passed intake validation.")
-            .WithHandoff(agents[WorkflowAgents.Fulfillment.Name], agents[WorkflowAgents.Order.Name], "Stock was checked for every line item.")
+            .WithHandoff(agents[WorkflowAgents.Intake.Name], agents[WorkflowAgents.Fulfillment.Name], WorkflowAgents.IntakeHandoffCondition)
+            .WithHandoff(agents[WorkflowAgents.Fulfillment.Name], agents[WorkflowAgents.Order.Name], WorkflowAgents.FulfillmentHandoffCondition)
             .WithAutonomousMode(MaxAutonomousTurns)
             .WithTerminationCondition(_ => context.IsTerminal)
             .Build();
@@ -243,7 +243,10 @@ public sealed class DealWorkflowEngine(
         chatOptions.Instructions = definition.Instructions;
         chatOptions.Tools = agentTools;
 
-        return new ChatClientAgent(model.ChatClient, new ChatClientAgentOptions
+        // Ogni agente vede i fatti prodotti dagli altri (chiamate e risultati) ma non il loro testo (D62).
+        var chatClient = new ForeignAgentTextFilter(model.ChatClient, definition.Name, WorkflowAgents.Names);
+
+        return new ChatClientAgent(chatClient, new ChatClientAgentOptions
         {
             Id = definition.Name,
             Name = definition.Name,

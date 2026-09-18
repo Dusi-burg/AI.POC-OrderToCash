@@ -25,6 +25,7 @@ POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre
 | `src/Dusiburg.AI.O2C.Erp.Web` | UI dell'ERP in sola lettura: clienti, magazzino, ordini ricevuti (Fase 6) |
 | `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
 | `tools/Dusiburg.AI.O2C.DbInit` | Crea da zero il database `O2C` dal modello EF (niente migration) |
+| `tools/Dusiburg.AI.O2C.PromptReplay` | Rimanda al modello le richieste catturate e misura la prima chiamata di ogni risposta |
 | `tests/*` | NUnit 4 con `Assert.That` (runner NUnit su Microsoft.Testing.Platform) |
 
 ## Prerequisiti
@@ -151,6 +152,31 @@ Scenari, dati demo e reset sono descritti in [docs/demo.md](docs/demo.md). Richi
 - `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http` — endpoint dev del CRM mock (solo Development): deal, chiusura `ClosedWon`, reset.
 
 Per ripetere la demo senza ricreare il database: `POST /dev/reset` su Erp.Api e Crm.Mcp; per ripartire da zero si rilancia `DbInit`.
+
+## Cattura e replay dei prompt
+
+Servono a capire **che cosa** arriva davvero al modello quando un agente si comporta male, e a misurare una correzione invece di indovinarla (D62).
+
+- **Cattura**: con `O2C_PROMPT_CAPTURE_DIR` valorizzata, l'orchestratore scrive in quella cartella ogni richiesta inviata al modello. Senza la variabile non si cattura nulla. Come le altre manopole della demo (D52) si imposta **sull'AppHost**, che la inoltra all'orchestratore:
+
+  ```powershell
+  $env:O2C_PROMPT_CAPTURE_DIR = 'C:\Temp\o2c-capture'
+  dotnet run --project src/Dusiburg.AI.O2C.AppHost
+  ```
+
+  > I file contengono i dati di business del run (deal, aziende, prezzi): tenerli fuori dal repository.
+
+- **Replay**: `tools/Dusiburg.AI.O2C.PromptReplay` rimanda al modello le conversazioni di `Cases/` e controlla quale sia la prima chiamata di ogni risposta, ripetendo N volte. Esce 0 se ogni caso dà sempre la chiamata attesa, 1 altrimenti.
+
+Il provider è quello dell'orchestratore e **il default è `anthropic`**: per il giro sul modello locale va impostata `MODEL_PROVIDER`.
+
+```powershell
+$env:MODEL_PROVIDER = 'ollama'
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --no-filter          # senza il filtro della catena
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --captured-instructions   # con le istruzioni del run catturato
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --case fulfillment-d1003-so-i-can
+```
 
 ## Build e test
 

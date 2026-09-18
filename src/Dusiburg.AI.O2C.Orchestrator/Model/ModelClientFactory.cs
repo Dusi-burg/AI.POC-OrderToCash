@@ -34,11 +34,18 @@ public sealed class ModelClientFactory(IConfiguration configuration, ILoggerFact
             ? CreateAnthropic(options)
             : CreateOllama(options);
 
-        var chatClient = inner
+        var builder = inner
             .AsBuilder()
             .UseLogging(loggerFactory)
-            .UseOpenTelemetry(loggerFactory, TelemetrySourceName)
-            .Build();
+            .UseOpenTelemetry(loggerFactory, TelemetrySourceName);
+
+        // Diagnostica opzionale: ogni richiesta al modello salvata su file, per vedere il prompt reale.
+        if (configuration[PromptCaptureChatClient.DirectoryConfigurationKey] is { Length: > 0 } captureDirectory)
+        {
+            builder.Use(client => new PromptCaptureChatClient(client, captureDirectory));
+        }
+
+        var chatClient = builder.Build();
 
         return new ModelClient(chatClient, options.Provider, modelId, defaults);
     }

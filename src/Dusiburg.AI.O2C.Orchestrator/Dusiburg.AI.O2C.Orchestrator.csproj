@@ -25,6 +25,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="Dusiburg.AI.O2C.Orchestrator.Tests" />
+    <InternalsVisibleTo Include="Dusiburg.AI.O2C.PromptReplay" />
   </ItemGroup>
 
 </Project>

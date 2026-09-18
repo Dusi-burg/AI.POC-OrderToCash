@@ -128,7 +128,38 @@ Dal vivo, su D-1007, il modello locale non ha segnalato lo SKU `IND-SEN-999` e h
 
 Test nuovi: `ProcessAsync_ModelProposesAnUnknownSku_HostFailsWithoutApprovalAndWithoutOrder` e i casi della guardia (totale **284**). Dal vivo D-1007 arriva a `Failed` in 36 s.
 
-## 10. Limiti noti
+## 10. Correzione D62: la catena fra agenti
+
+Con l'handoff di Agent Framework il testo con cui un agente accompagna il passaggio di mano resta nella conversazione e arriva al successivo come **messaggio dell'utente**. Il modello lo legge come un'istruzione: su `qwen3.5:9b` frasi di `IntakeAgent` come "…so I can hand off to FulfillmentAgent" o "…immediately" facevano passare la mano a `OrderAgent` senza che `FulfillmentAgent` avesse chiamato `check_stock`. Il guardrail teneva comunque, perché le giacenze le riverifica l'host (D54), ma un agente non faceva il proprio lavoro.
+
+Irrobustire le istruzioni non basta: quel testo lo scrive un altro modello e cambia a ogni run.
+
+- `Agents/ForeignAgentTextFilter.cs` è un `DelegatingChatClient` che, prima di ogni richiesta al modello, toglie il **solo testo** dei messaggi il cui `AuthorName` è un altro agente del workflow (`WorkflowAgents.Names`). Restano le loro chiamate ai tool e i risultati, che sono i fatti; un messaggio rimasto vuoto si scarta. I messaggi senza autore (la richiesta iniziale, le continuazioni del framework) e quelli dell'agente stesso non si toccano.
+- `DealWorkflowEngine` avvolge così il client di ogni agente. Il filtro agisce solo su ciò che si manda al modello: la conversazione del workflow e i checkpoint restano completi, quindi la traccia e la ripresa non cambiano.
+- Le descrizioni dei tool di handoff (`IntakeHandoffCondition`, `FulfillmentHandoffCondition`) sono scritte come **condizioni d'uso** e non come fatti già avvenuti: "Stock was checked…" faceva passare la mano senza verificare.
+
+Con il filtro attivo le istruzioni difensive aggiunte agli agenti ("Earlier messages from IntakeAgent may appear as user messages…") sono state tolte: descrivevano messaggi che non arrivano più.
+
+### Cattura e replay dei prompt
+
+Per misurare invece di indovinare, due strumenti:
+
+- `Model/PromptCaptureChatClient.cs` scrive su file ogni richiesta inviata al modello quando `O2C_PROMPT_CAPTURE_DIR` è valorizzata (`ModelClientFactory` lo aggancia solo in quel caso). **I file contengono dati di business e non vanno nel repository.**
+- `tools/Dusiburg.AI.O2C.PromptReplay` rimanda al modello le conversazioni catturate in `Cases/` e controlla quale sia la **prima chiamata** di ogni risposta, ripetendo N volte. Per default usa le istruzioni attuali degli agenti e il filtro; `--no-filter` e `--captured-instructions` servono a riprodurre il comportamento di prima. Exit code 0 se ogni caso dà sempre la chiamata attesa, 1 altrimenti.
+
+Il provider è quello dell'orchestratore e il default è `anthropic`: per il giro sul modello locale serve `MODEL_PROVIDER=ollama`.
+
+```powershell
+$env:MODEL_PROVIDER = 'ollama'
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --no-filter
+```
+
+Misure su `qwen3.5:9b`, sei conversazioni per cinque ripetizioni (2026-09-18): **30/30** con il filtro e le istruzioni semplificate; senza filtro falliscono **quattro casi su sei**, 0/5 ciascuno e sempre con l'handoff al posto di `check_stock`. Passano anche senza filtro solo la conversazione in cui `IntakeAgent` elenca le righe senza annunciare il passaggio di mano e quella di `OrderAgent`. Test unitari del filtro: `ForeignAgentTextFilterTests` (4), totale **288/288**.
+
+Dal vivo, un giro per deal su D-1001, D-1002, D-1003 e D-1006 con il modello locale: `check_stock` chiamato su ogni riga prima di ogni handoff, righe di `create_order` identiche a quelle del deal (compresa la riga scoperta di D-1003, ordinata per la quantità del deal e non per quella disponibile), esiti come in `docs/demo.md`. La copertura dal vivo è di un giro a deal: la ripetizione la fa il replay, che è deterministico.
+
+## 11. Limiti noti
 
 - **Nessuna autenticazione** su UI e API utente (G6.5): accettato in locale, da risolvere in Fase 7 (G7.4, G7.7).
 - **Nessuna outbox** fra salvataggio dello stage e pubblicazione: un deal può restare vinto senza workflow finché qualcuno non ripubblica.

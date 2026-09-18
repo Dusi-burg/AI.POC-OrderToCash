@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!-- Replay di richieste al modello catturate dal vivo (D62): regressione delle istruzioni degli agenti senza avviare il workflow. -->
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <NoWarn>$(NoWarn);MEAI001</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Dusiburg.AI.O2C.Orchestrator\Dusiburg.AI.O2C.Orchestrator.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Include="Cases\**\*.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
