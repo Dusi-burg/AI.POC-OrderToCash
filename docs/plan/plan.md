@@ -22,7 +22,7 @@
 | 3 | [fase-3-agente-singolo.md](fase-3-agente-singolo.md) | Un agente end-to-end da CLI | ✅ Completata (2026-09-15) |
 | 4 | [fase-4-multi-agente.md](fase-4-multi-agente.md) | Intake/Fulfillment/Order con handoff + trigger RabbitMQ | ✅ Completata (2026-09-15) |
 | 5 | [fase-5-human-in-the-loop.md](fase-5-human-in-the-loop.md) | Approvazione, sospensione e ripresa | ✅ Completata (2026-09-16) |
-| 6 | [fase-6-ui-crm-erp.md](fase-6-ui-crm-erp.md) | UI web di CRM (deal, aziende, chiusura vinto/perso) ed ERP (clienti, magazzino, ordini, sola lettura) | ✅ Completata (2026-09-17) |
+| 6 | [fase-6-ui-crm-erp.md](fase-6-ui-crm-erp.md) | UI web di CRM (deal, aziende, chiusura vinto/perso) ed ERP (clienti, magazzino, ordini, sola lettura) | ✅ Completata (2026-09-17), chiusa il 2026-09-18 con D62 e D63 |
 | 7 | [fase-7-deploy-osservabilita.md](fase-7-deploy-osservabilita.md) | Azure (outline, da dettagliare) — era la Fase 6 (D57) | ⬜ Outline |
 
 Legenda: ⬜ da iniziare · 🟨 in corso · ✅ completata · ⛔ bloccata

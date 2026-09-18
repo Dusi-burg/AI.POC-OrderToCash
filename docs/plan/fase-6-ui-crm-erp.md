@@ -122,7 +122,7 @@ Fase 5 completata (flusso con approvazione, `Approvals.Web`, `docs/demo.md`).
 - [x] Un secondo comando di chiusura sullo stesso deal → messaggio "deal già chiuso", nessun evento.
 - [x] `Erp.Web` mostra clienti (con il cliente di D-1005 bloccato), magazzino con la riserva dell'ordine appena creato (e `Reserved > OnHand` evidenziato dopo D-1003), ordini ricevuti con la nota di backorder; nessuna azione di scrittura (POST → 405).
 - [x] I sei scenari rimanenti di `docs/demo.md` si eseguono dal browser con gli esiti della Fase 5. D-1003, D-1004, D-1005, D-1008 con i motivi attesi, D-1006 `Discarded`. **D-1007** al primo giro è finito in `ApprovalPending` (`InsufficientStock`) invece che `Failed`; corretto con D61 e riprovato: `Failed` in 36 s, senza approvazione né ordini (vedi "Scostamenti"). Il rifiuto e la scadenza non sono stati ripetuti (nessun codice toccato in quei percorsi).
-- [~] Nel dashboard la traccia di un flusso parte dalla richiesta HTTP di `Crm.Web` (span `crm.deal.close`) con lo stesso `correlation.id` del workflow. *Verificato in parte*: lo span e i suoi attributi sono coperti dai test; dal vivo il `x-correlation-id` inviato a `Crm.Web` si ritrova identico in `orch.WorkflowState.CorrelationId` per tutti i deal. Ispezione visiva della traccia nel dashboard non fatta.
+- [x] Nel dashboard la traccia di un flusso parte dalla richiesta HTTP di `Crm.Web` (span `crm.deal.close`) con lo stesso `correlation.id` del workflow. Lo span e i suoi attributi sono coperti dai test; dal vivo il `x-correlation-id` inviato a `Crm.Web` si ritrova identico in `orch.WorkflowState.CorrelationId` per tutti i deal. **Chiuso il 2026-09-18 senza l'ispezione visiva nel dashboard**: le due verifiche sopra bastano allo scopo, e l'unica cosa che l'occhio avrebbe aggiunto è la forma dell'albero degli span.
 - [x] Le due UI non hanno connection string `sql`/`rabbitmq` (AppHost: solo `WithReference(crmMcp)` / `WithReference(erpApi)`; i progetti non referenziano EF né il client RabbitMQ).
 - [x] DoD comune soddisfatta.
 
@@ -143,7 +143,7 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 
 ## Esito
 
-**Completata il 2026-09-17** — branch `develop`. Gate F6 chiuso con tutte le proposte accettate; prova dal vivo sul modello locale `qwen3.5:9b` (come D53).
+**Chiusa definitivamente il 2026-09-18** (utente). Completata il 2026-09-17 — branch `develop`. Gate F6 chiuso con tutte le proposte accettate; prova dal vivo sul modello locale `qwen3.5:9b` (come D53).
 
 ### Verifiche
 

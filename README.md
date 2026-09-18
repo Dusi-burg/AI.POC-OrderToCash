@@ -2,10 +2,11 @@
 
 POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre agenti specializzati (Microsoft Agent Framework) leggono il deal, verificano la disponibilità e creano l'ordine nell'ERP tramite due server **MCP**, con **approvazione umana** sopra determinate soglie di rischio.
 
+- **Cos'è, in poche pagine e senza gergo**: [docs/il-progetto-in-breve.md](docs/il-progetto-in-breve.md)
 - Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
 - Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
 
-> **Stato**: Fase 4 — multi-agente. Un evento `deal-closed-won` su RabbitMQ avvia il workflow IntakeAgent → FulfillmentAgent → OrderAgent (handoff di Agent Framework), che usa i tool MCP di `Erp.Mcp` e `Crm.Mcp` e porta il deal a `OrderCreated`, `Discarded` o `Failed`; stato del workflow nello schema `orch`. Approvazione umana in arrivo con la Fase 5. Dati demo in [docs/demo.md](docs/demo.md).
+> **Stato**: Fasi 0-6 completate. Il flusso è end-to-end dal browser: **Chiudi vinto** su un deal in `Crm.Web` pubblica `deal-closed-won` su RabbitMQ, il workflow IntakeAgent → FulfillmentAgent → OrderAgent usa i tool MCP di `Erp.Mcp` e `Crm.Mcp`, l'**approvazione umana** sospende e riprende il lavoro su `Approvals.Web`, e l'esito torna sul deal. Le istruzioni dei tre agenti stanno in documenti leggibili (`Agents/Specs`). Prossima: Fase 7 — deploy su Azure e osservabilità. Scenari in [docs/demo.md](docs/demo.md).
 
 ## Struttura
 
