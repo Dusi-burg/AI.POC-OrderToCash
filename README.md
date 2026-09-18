@@ -3,6 +3,7 @@
 POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre agenti specializzati (Microsoft Agent Framework) leggono il deal, verificano la disponibilità e creano l'ordine nell'ERP tramite due server **MCP**, con **approvazione umana** sopra determinate soglie di rischio.
 
 - **Cos'è, in poche pagine e senza gergo**: [docs/il-progetto-in-breve.md](docs/il-progetto-in-breve.md)
+- Quando serve un'approvazione, regola per regola: [docs/regole-di-approvazione.md](docs/regole-di-approvazione.md)
 - Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
 - Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
 

@@ -24,8 +24,30 @@ public sealed record ApprovalDecision(bool Required, IReadOnlyList<ApprovalReaso
 }
 
 /// <summary>
+/// Una regola di approvazione, con il testo che la spiega a chi non sviluppa (D64).
+/// <para>
+/// <see cref="Title"/> e <see cref="When"/> non sono commenti: sono la regola raccontata, e da essi nasce
+/// <c>docs/regole-di-approvazione.md</c>. Il documento non può quindi divergere da ciò che il sistema fa davvero,
+/// perché è generato dalla stessa lista che decide, e un test fallisce se i due si scostano.
+/// </para>
+/// </summary>
+/// <param name="Reason">Motivo registrato sulla richiesta di approvazione.</param>
+/// <param name="Title">Nome della regola, in italiano.</param>
+/// <param name="When">Quando scatta, in una frase leggibile da chiunque.</param>
+/// <param name="Applies">La condizione vera e propria, valutata sul contesto e sulla soglia in vigore.</param>
+public sealed record ApprovalRule(
+    ApprovalReason Reason,
+    string Title,
+    string When,
+    Func<ApprovalContext, decimal, bool> Applies);
+
+/// <summary>
 /// Regole di approvazione di §7 (5.1): deterministiche, in C#, **unica** fonte di verità — i prompt degli agenti non
 /// contengono soglie né condizioni. La soglia si legge da <c>APPROVAL_THRESHOLD_EUR</c> a ogni valutazione.
+/// <para>
+/// Le regole restano compilate di proposito (D64): questo è il punto che decide se servono una firma e dei soldi, e
+/// cambiarne una deve costare una modifica al codice, una build e un test, non la riga di un file di configurazione.
+/// </para>
 /// </summary>
 public sealed class ApprovalPolicy(IConfiguration configuration)
 {
@@ -34,6 +56,33 @@ public sealed class ApprovalPolicy(IConfiguration configuration)
     /// <summary>Soglia di default di §7, la stessa attorno a cui sono costruiti gli scenari demo.</summary>
     public const decimal DefaultThresholdEur = DemoCatalog.ApprovalThresholdEur;
 
+    /// <summary>
+    /// Le quattro regole, nell'ordine in cui compaiono fra i motivi di una richiesta. Aggiungerne una significa
+    /// aggiungere una riga qui: la valutazione, il documento e la telemetria la prendono da sola.
+    /// </summary>
+    public static IReadOnlyList<ApprovalRule> Rules { get; } =
+    [
+        new(ApprovalReason.OverThreshold,
+            "Importo sopra la soglia",
+            "il totale dell'ordine supera la soglia, di base 10.000 €. Un ordine esattamente pari alla soglia passa senza approvazione",
+            (context, threshold) => context.Total > threshold),
+
+        new(ApprovalReason.InsufficientStock,
+            "Merce insufficiente",
+            "per almeno una riga la merce disponibile non basta. L'ordine non viene ridotto: si crea per intero e va in arretrato",
+            (context, _) => context.Lines.Any(line => IsInsufficient(context.Stock, line))),
+
+        new(ApprovalReason.NewCustomer,
+            "Cliente nuovo",
+            "il cliente non era presente nel gestionale ed è stato creato durante questa lavorazione",
+            (context, _) => context.CustomerCreatedInThisRun),
+
+        new(ApprovalReason.BlockedCustomer,
+            "Cliente bloccato",
+            "il gestionale segna il cliente come bloccato. Qui l'approvazione è l'unica strada possibile",
+            (context, _) => context.Customer is { IsBlocked: true })
+    ];
+
     public decimal ThresholdEur =>
         decimal.TryParse(configuration[ThresholdSetting], System.Globalization.CultureInfo.InvariantCulture, out var value) && value >= 0
             ? value
@@ -41,29 +90,12 @@ public sealed class ApprovalPolicy(IConfiguration configuration)
 
     public ApprovalDecision Evaluate(ApprovalContext context)
     {
-        var reasons = new List<ApprovalReason>();
+        var threshold = ThresholdEur;
 
-        // Confronto stretto: un ordine esattamente pari alla soglia non richiede approvazione.
-        if (context.Total > ThresholdEur)
-        {
-            reasons.Add(ApprovalReason.OverThreshold);
-        }
-
-        // Basta una riga non disponibile: l'ordine andrebbe comunque creato, in backorder (D20).
-        if (context.Lines.Any(line => IsInsufficient(context.Stock, line)))
-        {
-            reasons.Add(ApprovalReason.InsufficientStock);
-        }
-
-        if (context.CustomerCreatedInThisRun)
-        {
-            reasons.Add(ApprovalReason.NewCustomer);
-        }
-
-        if (context.Customer is { IsBlocked: true })
-        {
-            reasons.Add(ApprovalReason.BlockedCustomer);
-        }
+        List<ApprovalReason> reasons =
+        [
+            .. Rules.Where(rule => rule.Applies(context, threshold)).Select(rule => rule.Reason)
+        ];
 
         return reasons.Count == 0 ? ApprovalDecision.NotRequired : new ApprovalDecision(true, reasons);
     }

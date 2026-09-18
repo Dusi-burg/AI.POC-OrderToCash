@@ -184,6 +184,8 @@ Alla richiesta esposta risponde **l'host, non il modello**: valuta la `ApprovalP
 
 **Regole che richiedono approvazione** (valutate prima di `erp.create_order`):
 
+> Le regole sono un **elenco dichiarativo** in `ApprovalPolicy.Rules`, ciascuna con nome e spiegazione in italiano; da lì si genera [regole-di-approvazione.md](regole-di-approvazione.md), che un test tiene allineato (M31). Restano compilate: configurabile è la sola soglia.
+
 - Totale ordine superiore a `APPROVAL_THRESHOLD_EUR` (default: 10.000 €).
 - Almeno una riga con disponibilità insufficiente (`available = false`).
 - Cliente non presente in ERP (creazione anagrafica contestuale).
@@ -431,3 +433,4 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M28 | §7 | Uno SKU inesistente scoperto dalla verifica dell'orchestratore ferma il workflow come `Failed` senza approvazione, anche se l'agente non l'ha segnalato; dopo un verdetto di arresto gli agenti non possono più chiamare tool di scrittura. Emerso da un run dal vivo su D-1007 finito in approvazione `InsufficientStock` | Applicata (Fase 6) |
 | M29 | §5 | Gli agenti si scambiano fatti e non testo: il testo di un agente non entra nella richiesta al modello del successivo, mentre le sue chiamate ai tool e i risultati restano. Emerso dai run in cui una frase di `IntakeAgent` sul passaggio di mano faceva saltare `check_stock` a `FulfillmentAgent` | Applicata (Fase 6) |
 | M30 | §5, §10 | Le istruzioni di ogni agente stanno in `Agents/Specs/<Nome>.agent.md`, incluse come risorse dell'assembly e non lette dal disco; allow-list dei tool, verdetti di arresto e topologia restano nel codice | Applicata (2026-09-18) |
+| M31 | §7 | Regole di approvazione come elenco dichiarativo con nome e spiegazione, da cui si genera `docs/regole-di-approvazione.md`; un test lo tiene allineato. Le regole restano compilate, configurabile la sola soglia | Applicata (2026-09-18) |

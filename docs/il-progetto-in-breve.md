@@ -107,6 +107,9 @@ L'ordine **non viene creato automaticamente** quando la situazione merita un occ
 - il cliente non esiste ancora nel gestionale e andrebbe creato;
 - il cliente è bloccato — qui il permesso è l'unica strada possibile.
 
+L'elenco completo, sempre allineato a quello che il sistema fa davvero, sta in
+[regole-di-approvazione.md](regole-di-approvazione.md).
+
 In quei casi il lavoro **si sospende davvero**: nessun ordine viene creato, e una richiesta compare in una pagina
 dedicata con tutto il necessario per decidere — righe, totale, giacenze, cliente. Il responsabile approva o rifiuta,
 e solo allora il lavoro riprende esattamente da dove si era fermato. Può passare un minuto o un giorno: il sistema
@@ -171,6 +174,7 @@ approvato.
 | Documento | A chi serve |
 |-----------|-------------|
 | `docs/demo.md` | Chi deve **mostrare** il sistema: gli scenari, uno per uno, con gli esiti attesi |
+| [`docs/regole-di-approvazione.md`](regole-di-approvazione.md) | Chi vuole sapere **quando serve un'approvazione**, regola per regola |
 | `docs/architettura.md` | Chi vuole il dettaglio tecnico completo |
 | `README.md` | Chi deve farlo partire sul proprio computer |
 | `src/Dusiburg.AI.O2C.Orchestrator/Agents/Specs/` | Chi vuole leggere le istruzioni date ai tre assistenti |
