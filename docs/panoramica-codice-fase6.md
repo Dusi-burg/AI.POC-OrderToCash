@@ -159,7 +159,41 @@ Misure su `qwen3.5:9b`, sei conversazioni per cinque ripetizioni (2026-09-18): *
 
 Dal vivo, un giro per deal su D-1001, D-1002, D-1003 e D-1006 con il modello locale: `check_stock` chiamato su ogni riga prima di ogni handoff, righe di `create_order` identiche a quelle del deal (compresa la riga scoperta di D-1003, ordinata per la quantità del deal e non per quella disponibile), esiti come in `docs/demo.md`. La copertura dal vivo è di un giro a deal: la ripetizione la fa il replay, che è deterministico.
 
-## 11. Limiti noti
+## 11. Specifiche degli agenti in file (D63)
+
+Il prompt di un agente è la parte che si tocca più spesso e quella che un non sviluppatore ha più bisogno di leggere,
+ma stava dentro a un letterale C#. Ora ogni agente ha un documento in `Agents/Specs`:
+
+```
+Agents/Specs/
+  IntakeAgent.agent.md
+  FulfillmentAgent.agent.md
+  OrderAgent.agent.md
+  SingleOrderAgent.agent.md
+```
+
+Il formato è Markdown letto per sezioni: il titolo dà il nome, la citazione sotto il titolo la descrizione (che
+finisce in `ChatClientAgentOptions.Description`), `## Instructions` gli ordini, `## Handoff` la condizione d'uso del
+tool di passaggio di mano. `## Note (non inviate al modello)` non entra da nessuna parte: è lì che si spiega in
+italiano perché una regola esiste, mentre il prompt resta in inglese (G3.3).
+
+- `Agents/AgentSpec.cs` carica il file con `GetManifestResourceStream` e lo interpreta. I file entrano nell'assembly
+  con `<EmbeddedResource Include="Agents\Specs\*.agent.md" LogicalName="%(Filename)%(Extension)" />`, quindi a runtime
+  non si legge niente dal disco e il nome della risorsa non dipende dal namespace.
+- I fine riga si normalizzano a `\n`, come fa il compilatore con i letterali grezzi: un file salvato con CRLF non deve
+  cambiare il testo che arriva al modello.
+- `WorkflowAgents` costruisce le tre `AgentDefinition` dalle specifiche e tiene nel codice ciò che è guardrail:
+  l'allow-list dei tool, il verdetto di arresto e `NextOf`. Un refuso in un nome di tool resta così un errore di
+  compilazione, e chi modifica un documento non può allargare i permessi di un agente.
+- `SingleOrderPrompt` fa lo stesso per l'agente della Fase 3, incluse le due richieste di esito strutturato.
+
+Il compilatore non sorveglia più il testo, quindi lo fanno i test: `AgentSpecTests` (14) verifica che le quattro
+specifiche siano incluse e complete, che le note non finiscano in nulla di inviato al modello, che l'indentazione
+dentro una sezione sopravviva, e che una specifica malformata fallisca con un messaggio che dice cosa manca.
+
+Limite accettato: essendo risorse dell'assembly, cambiare una parola richiede comunque una ricompilazione.
+
+## 12. Limiti noti
 
 - **Nessuna autenticazione** su UI e API utente (G6.5): accettato in locale, da risolvere in Fase 7 (G7.4, G7.7).
 - **Nessuna outbox** fra salvataggio dello stage e pubblicazione: un deal può restare vinto senza workflow finché qualcuno non ripubblica.

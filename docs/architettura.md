@@ -122,6 +122,7 @@ Vincoli di orchestrazione:
 - Il modello opera a **temperatura bassa** (0–0.2) e con **output strutturato** (JSON schema) per ogni decisione che influenza il flusso.
 - Lo stato del workflow è persistito su database: il processo deve poter riprendere dopo un riavvio (§12).
 - Gli agenti si scambiano **fatti, non testo** (M29): nella richiesta al modello di un agente non entra il testo scritto dagli altri agenti del workflow, ma restano le loro chiamate ai tool e i risultati. Nel workflow di handoff quel testo arriverebbe come messaggio dell'utente e verrebbe letto come un'istruzione: una frase di `IntakeAgent` sul passaggio di mano bastava a far saltare `check_stock` a `FulfillmentAgent`.
+- Le **istruzioni di ogni agente stanno in un file** (M30), `Agents/Specs/<Nome>.agent.md`, incluso come risorsa dell'assembly: si leggono e si discutono senza aprire il codice. Nel codice restano l'allow-list dei tool, il verdetto di arresto e la topologia, che sono guardrail e non testo.
 
 Regole di dominio (M9):
 
@@ -429,3 +430,4 @@ Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Arc
 | M27 | §3.1, §6.3 | API utente `/api/views` su `Crm.Mcp` ed `Erp.Api` e comando `POST /api/deals/{dealId}/close` (`Won` \| `Lost`) come ingresso del flusso; letture dev dei deal rimosse, `/dev/deals/{dealId}/close-won` resta per ripubblicare l'evento | Applicata (Fase 6) |
 | M28 | §7 | Uno SKU inesistente scoperto dalla verifica dell'orchestratore ferma il workflow come `Failed` senza approvazione, anche se l'agente non l'ha segnalato; dopo un verdetto di arresto gli agenti non possono più chiamare tool di scrittura. Emerso da un run dal vivo su D-1007 finito in approvazione `InsufficientStock` | Applicata (Fase 6) |
 | M29 | §5 | Gli agenti si scambiano fatti e non testo: il testo di un agente non entra nella richiesta al modello del successivo, mentre le sue chiamate ai tool e i risultati restano. Emerso dai run in cui una frase di `IntakeAgent` sul passaggio di mano faceva saltare `check_stock` a `FulfillmentAgent` | Applicata (Fase 6) |
+| M30 | §5, §10 | Le istruzioni di ogni agente stanno in `Agents/Specs/<Nome>.agent.md`, incluse come risorse dell'assembly e non lette dal disco; allow-list dei tool, verdetti di arresto e topologia restano nel codice | Applicata (2026-09-18) |

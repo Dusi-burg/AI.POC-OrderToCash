@@ -24,6 +24,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Specifiche degli agenti (D63): risorse dell'assembly, nessun file letto dal disco a runtime. -->
+    <EmbeddedResource Include="Agents\Specs\*.agent.md" LogicalName="%(Filename)%(Extension)" />
+  </ItemGroup>
+
+  <ItemGroup>
     <InternalsVisibleTo Include="Dusiburg.AI.O2C.Orchestrator.Tests" />
     <InternalsVisibleTo Include="Dusiburg.AI.O2C.PromptReplay" />
   </ItemGroup>

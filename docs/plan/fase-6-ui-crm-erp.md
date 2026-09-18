@@ -182,6 +182,21 @@ Lavoro fatto dopo la chiusura della fase, sullo stesso perimetro.
 - **Test**: +4 (`ForeignAgentTextFilterTests`), totale **288/288**.
 - **Commit**: `db9184b` (D62) e `651918e` (Aspire 13.5.4 e Anthropic 12.48.0).
 
+### Coda del 2026-09-18: le specifiche degli agenti in file (D63)
+
+Il prompt di ogni agente è uscito dal codice ed è diventato un documento in
+`src/Dusiburg.AI.O2C.Orchestrator/Agents/Specs`, uno per agente, incluso come risorsa dell'assembly.
+
+- `AgentSpec` legge il file dalle risorse e ne ricava nome, descrizione e sezioni; `## Note (non inviate al modello)`
+  resta fuori da tutto ciò che il modello riceve, così le spiegazioni in italiano stanno accanto a un prompt inglese.
+- `WorkflowAgents` e `SingleOrderPrompt` prendono da lì il loro testo. Allow-list dei tool, verdetti di arresto e
+  topologia restano nel codice: sono guardrail, non specifiche.
+- I fine riga si normalizzano a `\n` come fa il compilatore con i letterali grezzi, perché il testo inviato al modello
+  non cambi per il solo fatto di venire da un file salvato con CRLF.
+- Verifica dell'invarianza: i quattro prompt sono stati generati dai sorgenti e confrontati carattere per carattere
+  con gli originali (517, 694, 820 e 1078 caratteri, identici), poi il replay è stato rieseguito.
+- Test nuovi: `AgentSpecTests` (14), totale **302/302**.
+
 ### Scostamenti e note
 - **D-1007 non arrivava a `Failed` se il modello non segnalava lo SKU inesistente** (difetto della Fase 5, emerso dal vivo; **corretto con D61**, M28). `FulfillmentAgent` non ha chiamato `report_failed`, l'ordine è stato proposto, e `ApprovalGate` ha trattato il `NOT_FOUND` della propria verifica su `IND-SEN-999` come "riga non disponibile" (D54): risultato, un'approvazione `InsufficientStock` invece dello stop senza approvazione di D20. Il guardrail ha tenuto (nessun ordine), ma l'esito è sbagliato; se approvato, `create_order` fallirebbe con `NOT_FOUND`. Correzione, approvata dall'utente: un `NOT_FOUND` della verifica dell'host chiude il workflow come `Failed` senza approvazione, la chiamata a `create_order` si rifiuta e, dopo un verdetto di arresto, la guardia respinge le scritture degli agenti (altrimenti l'`update_deal OrderCreated` del modello lascerebbe sul CRM uno stato falso). Test: +5 (`ApprovalWorkflowTests`, `GuardedToolFunctionTests`), totale **284/284**.
 - **Retry della chiusura**: le opzioni del resilience handler registrato da `ConfigureHttpClientDefaults` non hanno il nome del client; la configurazione per nome non aveva effetto (il test ha visto 4 POST). `Crm.Web` usa `ConfigureAll` (D60).

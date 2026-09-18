@@ -153,6 +153,34 @@ Scenari, dati demo e reset sono descritti in [docs/demo.md](docs/demo.md). Richi
 
 Per ripetere la demo senza ricreare il database: `POST /dev/reset` su Erp.Api e Crm.Mcp; per ripartire da zero si rilancia `DbInit`.
 
+## Specifiche degli agenti
+
+Le istruzioni che ogni agente riceve non stanno nel codice: sono un documento per agente in
+`src/Dusiburg.AI.O2C.Orchestrator/Agents/Specs`, pensato per essere letto e discusso anche da chi non sviluppa.
+
+| File | Agente |
+|------|--------|
+| `IntakeAgent.agent.md` | Valida il deal CRM |
+| `FulfillmentAgent.agent.md` | Verifica le giacenze di ogni riga |
+| `OrderAgent.agent.md` | Cliente, ordine ERP e aggiornamento del deal |
+| `SingleOrderAgent.agent.md` | Agente unico della Fase 3 (`O2C_AGENT_MODE=single`) |
+
+Come si legge un file:
+
+- il **titolo** è il nome dell'agente e la **citazione** sotto di esso la sua descrizione;
+- ogni `## Sezione` è un testo che il modello riceve: `## Instructions` sono gli ordini, `## Handoff` la condizione
+  con cui l'agente passa la mano al successivo;
+- `## Note (non inviate al modello)` è commento per chi legge — non arriva da nessuna parte, ed è lì che stanno le
+  spiegazioni in italiano mentre il prompt resta in inglese.
+
+I file sono inclusi come **risorse dell'assembly**: a runtime non si legge nulla dal disco, quindi una modifica al
+testo richiede di ricompilare. Quello che tiene a freno gli agenti — quali tool ciascuno può chiamare, il verdetto di
+arresto, l'ordine della catena — resta invece nel codice (`WorkflowAgents`), perché un refuso lì deve restare un
+errore di compilazione. `AgentSpecTests` fa fallire la build se una specifica è incompleta o malformata.
+
+Prima di tenere una modifica al testo conviene misurarla con il replay descritto qui sotto: confronta il
+comportamento del prompt vecchio e di quello nuovo sulle stesse conversazioni.
+
 ## Cattura e replay dei prompt
 
 Servono a capire **che cosa** arriva davvero al modello quando un agente si comporta male, e a misurare una correzione invece di indovinarla (D62).
