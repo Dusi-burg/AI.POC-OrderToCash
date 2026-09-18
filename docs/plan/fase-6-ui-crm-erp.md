@@ -171,6 +171,17 @@ DoD comune di [plan.md](plan.md#definition-of-done-comune-a-ogni-fase).
 - AppHost: `crm-web`, `erp-web`, `Links__*`; tolto `Approvals__CrmDevBaseUrl`.
 - Documenti: `docs/demo.md` (demo dal browser, scenario "Chiudi perso"), `README.md`, `docs/architettura.md` (§3.1, §3.2, §6.3, §10, §11, M26, M27, deploy rinumerato in Fase 7), `docs/panoramica-codice-fase6.md`, riferimenti "Fase 6" → "Fase 7" in codice e panoramiche precedenti.
 
+### Coda del 2026-09-18: la catena fra agenti (D62)
+
+Lavoro fatto dopo la chiusura della fase, sullo stesso perimetro.
+
+- **Causa**: nel workflow di handoff il testo con cui un agente accompagna il passaggio di mano arriva al successivo come messaggio dell'utente e il modello lo legge come un'istruzione. Con `qwen3.5:9b` alcune formulazioni di `IntakeAgent` facevano passare la mano a `OrderAgent` senza che `FulfillmentAgent` avesse chiamato `check_stock`. Correggere le istruzioni non basta: quel testo lo scrive un altro modello e cambia a ogni run.
+- **Rimedio**: `ForeignAgentTextFilter` toglie dalla richiesta al modello il solo testo degli altri agenti del workflow e lascia le loro chiamate ai tool e i risultati (M29). Con il filtro attivo le istruzioni difensive degli agenti sono state tolte.
+- **Strumenti**: `PromptCaptureChatClient` (`O2C_PROMPT_CAPTURE_DIR`, ora inoltrata dall'AppHost come le altre manopole di D52) e `tools/Dusiburg.AI.O2C.PromptReplay`.
+- **Misure**: replay 30/30 su sei conversazioni, che senza filtro falliscono in quattro casi su sei (0/5 ciascuno, sempre l'handoff al posto di `check_stock`). Dal vivo, un giro per deal su D-1001, D-1002, D-1003 e D-1006: tutti corretti, `check_stock` su ogni riga prima di ogni handoff, righe di `create_order` identiche a quelle del deal. Copertura dal vivo di un giro a deal, accettata: la ripetizione la fa il replay, che è deterministico.
+- **Test**: +4 (`ForeignAgentTextFilterTests`), totale **288/288**.
+- **Commit**: `db9184b` (D62) e `651918e` (Aspire 13.5.4 e Anthropic 12.48.0).
+
 ### Scostamenti e note
 - **D-1007 non arrivava a `Failed` se il modello non segnalava lo SKU inesistente** (difetto della Fase 5, emerso dal vivo; **corretto con D61**, M28). `FulfillmentAgent` non ha chiamato `report_failed`, l'ordine è stato proposto, e `ApprovalGate` ha trattato il `NOT_FOUND` della propria verifica su `IND-SEN-999` come "riga non disponibile" (D54): risultato, un'approvazione `InsufficientStock` invece dello stop senza approvazione di D20. Il guardrail ha tenuto (nessun ordine), ma l'esito è sbagliato; se approvato, `create_order` fallirebbe con `NOT_FOUND`. Correzione, approvata dall'utente: un `NOT_FOUND` della verifica dell'host chiude il workflow come `Failed` senza approvazione, la chiamata a `create_order` si rifiuta e, dopo un verdetto di arresto, la guardia respinge le scritture degli agenti (altrimenti l'`update_deal OrderCreated` del modello lascerebbe sul CRM uno stato falso). Test: +5 (`ApprovalWorkflowTests`, `GuardedToolFunctionTests`), totale **284/284**.
 - **Retry della chiusura**: le opzioni del resilience handler registrato da `ConfigureHttpClientDefaults` non hanno il nome del client; la configurazione per nome non aveva effetto (il test ha visto 4 POST). `Crm.Web` usa `ConfigureAll` (D60).
