@@ -1,0 +1,46 @@
+name: CI
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  DOTNET_NOLOGO: true
+  DOTNET_SKIP_FIRST_TIME_EXPERIENCE: true
+  DOTNET_CLI_TELEMETRY_OPTOUT: true
+
+jobs:
+  build-and-test:
+    # Windows because the integration tests provision throwaway databases on
+    # SQL Server LocalDB, which only exists on Windows.
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Start SQL Server LocalDB instance 'localdev'
+        shell: pwsh
+        run: |
+          sqllocaldb create localdev -s
+          sqllocaldb info localdev
+
+      - name: Restore
+        run: dotnet restore Dusiburg.AI.O2C.slnx
+
+      - name: Build
+        run: dotnet build Dusiburg.AI.O2C.slnx --configuration Release --no-restore
+
+      - name: Test
+        run: dotnet test --solution Dusiburg.AI.O2C.slnx --configuration Release --no-build

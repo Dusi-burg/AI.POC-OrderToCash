@@ -399,7 +399,7 @@ Non implementare nel POC: fatturazione e pagamenti; gestione multi\-tenant; aute
 
 ## 17\. Registro delle modifiche
 
-Modifiche rispetto alla versione iniziale del documento (snapshot in `C:\Dev\Architettura`), decise nel gate socratico del piano (`docs/plan/plan.md`, decisioni D1–D25) e nei gate di fase. Le modifiche con stato "Applicata" sono già riportate nelle sezioni indicate.
+Modifiche rispetto alla versione iniziale di questo documento, decise in fase di pianificazione e all'inizio di ogni fase di sviluppo. Le modifiche con stato "Applicata" sono già riportate nelle sezioni indicate.
 
 | ID | § | Modifica | Stato |
 | --- | --- | --- | --- |

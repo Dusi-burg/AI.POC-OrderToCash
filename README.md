@@ -1,91 +1,100 @@
 # AI.POC-OrderToCash
 
-POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre agenti specializzati (Microsoft Agent Framework) leggono il deal, verificano la disponibilità e creano l'ordine nell'ERP tramite due server **MCP**, con **approvazione umana** sopra determinate soglie di rischio.
+> 🇬🇧 **English** · 🇮🇹 [Italiano](README.it.md)
 
-- **Cos'è, in poche pagine e senza gergo**: [docs/il-progetto-in-breve.md](docs/il-progetto-in-breve.md)
-- Quando serve un'approvazione, regola per regola: [docs/regole-di-approvazione.md](docs/regole-di-approvazione.md)
-- Specifica (fonte di verità): [docs/architettura.md](docs/architettura.md)
-- Piano per fasi: [docs/plan/plan.md](docs/plan/plan.md)
+[![CI](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml/badge.svg)](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml)
 
-> **Stato**: Fasi 0-6 completate. Il flusso è end-to-end dal browser: **Chiudi vinto** su un deal in `Crm.Web` pubblica `deal-closed-won` su RabbitMQ, il workflow IntakeAgent → FulfillmentAgent → OrderAgent usa i tool MCP di `Erp.Mcp` e `Crm.Mcp`, l'**approvazione umana** sospende e riprende il lavoro su `Approvals.Web`, e l'esito torna sul deal. Le istruzioni dei tre agenti stanno in documenti leggibili (`Agents/Specs`). Prossima: Fase 7 — deploy su Azure e osservabilità. Scenari in [docs/demo.md](docs/demo.md).
+An **agentic Order-to-Cash** proof of concept: when a deal moves to *Closed Won* in the CRM, three specialised agents (Microsoft Agent Framework) read the deal, check stock availability and create the order in the ERP through two **MCP** servers, pausing for **human approval** above defined risk thresholds.
 
-## Struttura
+> **Note on language** — the code, the agent prompts and the commit-level engineering are in English; the long-form documents under `docs/` are written in Italian. This README covers everything you need to build, run and understand the system.
 
-| Percorso | Ruolo |
-|----------|-------|
-| `src/Dusiburg.AI.O2C.AppHost` | .NET Aspire: composizione locale di tutti i servizi |
-| `src/Dusiburg.AI.O2C.ServiceDefaults` | OpenTelemetry, health check, service discovery, resilienza, correlation id |
-| `src/Dusiburg.AI.O2C.Erp.Api` | Minimal API: l'ERP mock |
-| `src/Dusiburg.AI.O2C.Erp.Data` | Modello EF Core dell'ERP (schema `erp`) |
-| `src/Dusiburg.AI.O2C.Erp.Mcp` | Server MCP sopra `Erp.Api` |
-| `src/Dusiburg.AI.O2C.Crm.Mcp` | Server MCP con il CRM mock |
-| `src/Dusiburg.AI.O2C.Crm.Data` | Modello EF Core del CRM mock (schema `crm`) |
-| `src/Dusiburg.AI.O2C.Mcp.Hosting` | Infrastruttura comune dei server MCP: API key, filtro sulle chiamate ai tool, errori strutturati |
-| `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agenti, handoff, policy di approvazione |
-| `src/Dusiburg.AI.O2C.Approvals.Web` | UI delle approvazioni |
-| `src/Dusiburg.AI.O2C.Crm.Web` | UI del CRM mock: deal, aziende, comandi Chiudi vinto / Chiudi perso (Fase 6) |
-| `src/Dusiburg.AI.O2C.Erp.Web` | UI dell'ERP in sola lettura: clienti, magazzino, ordini ricevuti (Fase 6) |
-| `src/Dusiburg.AI.O2C.Shared` | Contratti (§6), helper di idempotenza e correlazione, codici errore, nomi di telemetria |
-| `tools/Dusiburg.AI.O2C.DbInit` | Crea da zero il database `O2C` dal modello EF (niente migration) |
-| `tools/Dusiburg.AI.O2C.PromptReplay` | Rimanda al modello le richieste catturate e misura la prima chiamata di ogni risposta |
-| `tests/*` | NUnit 4 con `Assert.That` (runner NUnit su Microsoft.Testing.Platform) |
+> **Status**: phases 0–6 complete. The flow runs end-to-end from the browser: **Close won** on a deal in `Crm.Web` publishes `deal-closed-won` on RabbitMQ, the IntakeAgent → FulfillmentAgent → OrderAgent workflow calls the MCP tools of `Erp.Mcp` and `Crm.Mcp`, **human approval** suspends and resumes the run from `Approvals.Web`, and the outcome is written back onto the deal. Next up: phase 7 — Azure deployment and observability.
 
-## Prerequisiti
+## Why this POC is interesting
 
-- **.NET SDK 10.0.4xx** (vedi `global.json`).
-- **SQL Server LocalDB** con l'istanza `localdev` e il database `O2C` creato dal tool `DbInit`:
+- **Two real MCP servers**, not tool stubs: Streamable HTTP transport, API-key auth, a shared call filter, structured error envelopes and published output schemas.
+- **Multi-agent handoff with hard rails**: which tools each agent may call, the stop verdict and the order of the chain live in *code*, so a typo is a compile error — while the instruction text lives in reviewable documents.
+- **Human-in-the-loop that actually suspends**: the workflow persists its state, waits for a decision in a web UI, and resumes.
+- **Prompt capture and replay**: a tool that replays captured conversations against the model N times and asserts the first tool call, so a prompt change can be *measured* instead of guessed.
+- **Correlation and idempotency by construction**: the idempotency key is computed by code and never by the model; a correlation id flows across every HTTP/MCP hop, onto logs and spans.
+
+## Layout
+
+| Path | Role |
+|------|------|
+| `src/Dusiburg.AI.O2C.AppHost` | .NET Aspire: local composition of every service |
+| `src/Dusiburg.AI.O2C.ServiceDefaults` | OpenTelemetry, health checks, service discovery, resilience, correlation id |
+| `src/Dusiburg.AI.O2C.Erp.Api` | Minimal API: the mock ERP |
+| `src/Dusiburg.AI.O2C.Erp.Data` | EF Core model of the ERP (schema `erp`) |
+| `src/Dusiburg.AI.O2C.Erp.Mcp` | MCP server on top of `Erp.Api` |
+| `src/Dusiburg.AI.O2C.Crm.Mcp` | MCP server with the mock CRM |
+| `src/Dusiburg.AI.O2C.Crm.Data` | EF Core model of the mock CRM (schema `crm`) |
+| `src/Dusiburg.AI.O2C.Mcp.Hosting` | Shared MCP server infrastructure: API key, tool-call filter, structured errors |
+| `src/Dusiburg.AI.O2C.Orchestrator` | Worker: agents, handoff, approval policy |
+| `src/Dusiburg.AI.O2C.Approvals.Web` | Approvals UI |
+| `src/Dusiburg.AI.O2C.Crm.Web` | Mock CRM UI: deals, companies, close won / close lost commands |
+| `src/Dusiburg.AI.O2C.Erp.Web` | Read-only ERP UI: customers, stock, received orders |
+| `src/Dusiburg.AI.O2C.Shared` | Contracts, idempotency and correlation helpers, error codes, telemetry names |
+| `tools/Dusiburg.AI.O2C.DbInit` | Creates the `O2C` database from scratch off the EF model (no migrations) |
+| `tools/Dusiburg.AI.O2C.PromptReplay` | Replays captured requests against the model and measures the first call of each response |
+| `tests/*` | NUnit 4 with `Assert.That` (NUnit runner on Microsoft.Testing.Platform) |
+
+## Prerequisites
+
+- **.NET SDK 10.0.4xx** (see `global.json`).
+- **SQL Server LocalDB**, with the `O2C` database created by the `DbInit` tool:
   ```powershell
   sqllocaldb create localdev -s
-  dotnet run --project tools/Dusiburg.AI.O2C.DbInit   # cancella e ricrea O2C: schemi erp e crm, lookup degli enum
+  dotnet run --project tools/Dusiburg.AI.O2C.DbInit   # drops and recreates O2C: erp and crm schemas, enum lookups
   ```
-  Non ci sono migration: a ogni modifica del modello si rilancia il tool. Senza argomenti usa `ConnectionStrings__sql` o `(localdb)\localdev`; su un server che non è LocalDB serve `--allow-non-local`.
-- **Docker in WSL** (distro `Ubuntu-26.04`) con un container `rabbitmq` (`rabbitmq:4.3.5-management`, porte 5672/15672) e, sul broker, il vhost `o2c` con l'utente `o2c`. Il container **non va avviato a mano**: lo fa l'AppHost (vedi sotto). Se distro o nome del container sono diversi, impostare `RabbitMq:WslDistro` e `RabbitMq:Container` negli user-secrets dell'AppHost.
+  There are no migrations: every model change means re-running the tool. With no arguments it uses `ConnectionStrings__sql`, falling back to `(localdb)\localdev`; against a non-LocalDB server it needs `--allow-non-local`.
+- **RabbitMQ** reachable at `amqp://…:5672`, with a vhost and user dedicated to the POC. The reference setup runs `rabbitmq:4.3.5-management` in Docker; the AppHost can start that container for you (see below).
 
-  Creazione di vhost e utente (una volta sola; eseguire i comandi nella stessa sessione WSL, a broker avviato):
+  One-off creation of vhost and user, with the broker running:
   ```bash
   docker exec rabbitmq rabbitmqctl add_vhost o2c
   docker exec rabbitmq rabbitmqctl add_user o2c '<password>'
   docker exec rabbitmq rabbitmqctl set_permissions -p o2c o2c '.*' '.*' '.*'
   ```
 
-### Perché RabbitMQ lo avvia l'AppHost
+### Optional: letting the AppHost start the broker
 
-Senza sessioni aperte, WSL spegne la propria VM dopo pochi secondi e con lei Docker e il broker. L'AppHost definisce la risorsa `rabbitmq-wsl`, che esegue `wsl -d Ubuntu-26.04 -- docker start --attach rabbitmq`: la sessione resta aperta finché gira il POC e i log del broker compaiono nel dashboard. Non serve configurare la macchina né lanciare script dopo un riavvio.
+When Docker runs inside WSL, WSL shuts its VM down a few seconds after the last session closes — taking Docker and the broker with it. The AppHost therefore defines a `rabbitmq-wsl` resource that runs `wsl -d <distro> -- docker start --attach rabbitmq`, keeping the session open for as long as the POC runs and surfacing the broker logs in the dashboard. Set `RabbitMq:WslDistro` and `RabbitMq:Container` in the AppHost user-secrets to match your machine, or point `ConnectionStrings:rabbitmq` at any broker you already run and ignore this.
 
-## Configurazione locale
+## Local configuration
 
-Nessun segreto nel repository: i valori stanno negli **user-secrets dell'AppHost**, che li passa ai servizi.
+No secrets are stored in the repository: values live in the **AppHost user-secrets**, which passes them to the services.
 
 ```powershell
 dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "ConnectionStrings:sql" "Server=(localdb)\localdev;Database=O2C;Trusted_Connection=True;TrustServerCertificate=True"
 dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "ConnectionStrings:rabbitmq" "amqp://o2c:<password>@localhost:5672/o2c"
-dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:erp-mcp-api-key" "<valore casuale>"
-dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:crm-mcp-api-key" "<valore casuale>"
-dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:anthropic-api-key" "<API key da platform.claude.com>"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:erp-mcp-api-key" "<random value>"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:crm-mcp-api-key" "<random value>"
+dotnet user-secrets --project src/Dusiburg.AI.O2C.AppHost set "Parameters:anthropic-api-key" "<API key from platform.claude.com>"
 ```
 
-## Avvio
+## Running
 
 ```powershell
 dotnet run --project src/Dusiburg.AI.O2C.AppHost
 ```
 
-L'URL del dashboard Aspire (con token di login) viene stampato in console.
+The Aspire dashboard URL (with its login token) is printed to the console.
 
-Il profilo di default dell'AppHost usa HTTPS e richiede il certificato di sviluppo trusted (una volta sola, con conferma di Windows):
+The AppHost's default profile uses HTTPS and needs a trusted development certificate (once, with a Windows confirmation prompt):
 
 ```powershell
 dotnet dev-certs https --trust
 ```
 
-In alternativa si può avviare in HTTP:
+Alternatively, run over HTTP:
 
 ```powershell
 $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusiburg.AI.O2C.AppHost --launch-profile http
 ```
 
-| Servizio | URL locale |
-|----------|-----------|
+| Service | Local URL |
+|---------|-----------|
 | Erp.Api | http://localhost:5101 |
 | Erp.Mcp | http://localhost:5102 |
 | Crm.Mcp | http://localhost:5103 |
@@ -94,133 +103,138 @@ $env:ASPIRE_ALLOW_UNSECURED_TRANSPORT = "true"; dotnet run --project src/Dusibur
 | Erp.Web | http://localhost:5106 |
 | RabbitMQ management | http://localhost:15672 |
 
-Ogni servizio web espone `GET /` (informativo), `/health` e `/alive` (solo in Development).
+Every web service exposes `GET /` (informational), plus `/health` and `/alive` in Development only.
 
-## Server MCP
+## MCP servers
 
-| Server | Endpoint | Tool | API key (user-secrets dell'AppHost) |
-|--------|----------|------|-------------------------------------|
+| Server | Endpoint | Tools | API key (AppHost user-secrets) |
+|--------|----------|-------|--------------------------------|
 | `erp-mcp` | http://localhost:5102/mcp | `get_customer`, `create_customer`, `check_stock`, `create_order`, `get_order` | `Parameters:erp-mcp-api-key` |
 | `crm-mcp` | http://localhost:5103/mcp | `get_deal`, `get_company`, `update_deal` | `Parameters:crm-mcp-api-key` |
 
-- Trasporto MCP Streamable HTTP **stateless** (SDK `ModelContextProtocol.AspNetCore` 2.2.0, protocollo `2026-07-28`).
-- Header obbligatorio `X-Api-Key`: se manca o è errato la risposta è 401 (ProblemDetails con `code = UNAUTHORIZED`). Senza chiave configurata il server non si avvia.
-- Header facoltativo `x-correlation-id`: propagato a `Erp.Api`, sui log e sullo span `mcp.tool {tool.name}` di ogni chiamata (attributi `tool.name`, `correlation.id`, `tool.outcome`).
-- Risultati positivi in `structuredContent`, con lo schema pubblicato in `tools/list`. Errori come risultato `isError = true` con `{ "error": { "code", "message" } }` nel testo. `get_customer` restituisce `{ "customer": null }` se il cliente non esiste.
-- `create_order` è annotato `destructive` e ha `_meta` `o2c.sensitive = true`: la policy di approvazione arriva con la Fase 5.
-- Verifica manuale facoltativa con MCP Inspector (richiede Node): `npx @modelcontextprotocol/inspector`, trasporto Streamable HTTP, URL del server e header `X-Api-Key`.
+- **Stateless Streamable HTTP** MCP transport (`ModelContextProtocol.AspNetCore` 2.2.0, protocol `2026-07-28`).
+- The `X-Api-Key` header is mandatory: missing or wrong keys get a 401 (ProblemDetails with `code = UNAUTHORIZED`). With no key configured the server refuses to start.
+- The optional `x-correlation-id` header is propagated to `Erp.Api`, onto logs, and onto the `mcp.tool {tool.name}` span of every call (attributes `tool.name`, `correlation.id`, `tool.outcome`).
+- Successful results go in `structuredContent`, with the schema published in `tools/list`. Errors come back as `isError = true` results carrying `{ "error": { "code", "message" } }` in the text, produced by the shared filter in `Mcp.Hosting` — no exception ever reaches the client. `get_customer` returns `{ "customer": null }` when the customer does not exist.
+- `create_order` is annotated `destructive` and carries `_meta` `o2c.sensitive = true`, which is what the approval policy keys off.
+- Optional manual check with MCP Inspector (needs Node): `npx @modelcontextprotocol/inspector`, Streamable HTTP transport, the server URL and the `X-Api-Key` header.
 
-## Agente (Fase 3)
+## Model provider
 
-L'orchestratore dipende solo da `IChatClient`: il provider del modello si sceglie da configurazione.
+The orchestrator depends only on `IChatClient`: the model provider is chosen through configuration.
 
-| Chiave | Default | Note |
-|--------|---------|------|
-| `MODEL_PROVIDER` | `anthropic` | `anthropic` oppure `ollama` |
-| `ANTHROPIC_API_KEY` | — | Segreto: `Parameters:anthropic-api-key` negli user-secrets dell'AppHost |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Claude via API Anthropic (SDK `Anthropic` per C#) |
-| `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX` | `http://localhost:11434`, `qwen3.5:9b`, `16384` | Modello locale, misurato senza criteri di accettazione |
+| Key | Default | Notes |
+|-----|---------|-------|
+| `MODEL_PROVIDER` | `anthropic` | `anthropic` or `ollama` |
+| `ANTHROPIC_API_KEY` | — | Secret: `Parameters:anthropic-api-key` in the AppHost user-secrets |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Claude via the Anthropic API (`Anthropic` SDK for C#) |
+| `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX` | `http://localhost:11434`, `qwen3.5:9b`, `16384` | Local model, measured without acceptance criteria |
 
-Modello locale (facoltativo): `winget install Ollama.Ollama`, poi `ollama pull qwen3.5:9b`. Con 8 GB di VRAM Ollama userebbe un contesto di 4096 token, troppo piccolo per l'agente: l'orchestratore lo porta a 16384 e disattiva il thinking.
+Local model (optional): `winget install Ollama.Ollama`, then `ollama pull qwen3.5:9b`. On 8 GB of VRAM Ollama would pick a 4096-token context, too small for the agent: the orchestrator raises it to 16384 and disables thinking.
 
-Elaborazione di un deal da riga di comando, con l'AppHost avviato:
+Processing a deal from the command line, with the AppHost running:
 
 ```powershell
 Invoke-RestMethod -Method Post http://localhost:5103/dev/deals/D-1001/close-won
 dotnet run --project src/Dusiburg.AI.O2C.Orchestrator -- process --deal D-1001
-# con il modello locale:
+# with the local model:
 $env:MODEL_PROVIDER = "ollama"; dotnet run --project src/Dusiburg.AI.O2C.Orchestrator -- process --deal D-1001
 ```
 
-- In Development la CLI legge le API key (MCP e modello) dagli user-secrets dell'AppHost e invia la telemetria al dashboard (`O2C_CLI_OTLP_ENDPOINT`, default `https://localhost:21058`): la traccia `o2c.process_deal` contiene gli span `tool.call` e le chiamate MCP → Erp.Api.
-- Stampa l'esito in JSON; exit code `0` ordine creato, `1` deal non concluso, `2` errore. Stato e numero d'ordine vengono dai risultati dei tool, non dal riassunto del modello.
-- Senza argomenti l'orchestratore resta un worker (sotto l'AppHost).
+- In Development the CLI reads the API keys (MCP and model) from the AppHost user-secrets and sends telemetry to the dashboard (`O2C_CLI_OTLP_ENDPOINT`, default `https://localhost:21058`): the `o2c.process_deal` trace contains the `tool.call` spans and the MCP → Erp.Api calls.
+- It prints the outcome as JSON; exit code `0` order created, `1` deal not closed, `2` error. Status and order number come from the tool results, not from the model's summary.
+- With no arguments the orchestrator stays a worker (under the AppHost).
 
-## Workflow multi-agente e trigger (Fase 4)
+## Multi-agent workflow and trigger
 
-- `POST /dev/deals/{id}/close-won` sul CRM porta il deal in `ClosedWon` e pubblica `deal-closed-won` (exchange topic `deal-closed-won`, `message-id = {dealId}:{revision}`). Il worker dell'orchestratore consuma dalla coda `o2c.orchestrator.deal-closed-won` (`prefetch = 1`, fino a 3 nuovi tentativi, poi `o2c.orchestrator.deal-closed-won.dlq`).
-- Workflow: **IntakeAgent** (`get_deal`, `get_company`; se il deal non è valido `report_discarded`) → **FulfillmentAgent** (`check_stock`; SKU inesistente → `report_failed`) → **OrderAgent** (cliente, ordine, `update_deal`). Gli esiti `Discarded`/`Failed` li verifica e li scrive sul CRM l'orchestratore.
-- `O2C_AGENT_MODE=single` riattiva l'agente unico della Fase 3 (per confronto); default `multi`.
-- Stato in `orch.WorkflowState` (una riga per deal e revisione): un evento duplicato non avvia un secondo workflow; la CLI invece rielabora sulla stessa riga.
-- Traccia: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` per agente, `agent.handoff` (`handoff.from`, `handoff.to`, `handoff.reason`), `tool.call`, chiamate MCP → `Erp.Api`.
-- **Ripetere la demo**: `POST /dev/reset` su ERP e CRM **non** pulisce `orch.WorkflowState`. Per rilanciare lo stesso deal da evento: `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` (AppHost fermo) oppure cancellare le righe di `orch.WorkflowState`.
-- Con l'AppHost appena avviato, attendere nel dashboard il log dell'orchestratore "In ascolto su o2c.orchestrator.deal-closed-won" prima del primo `close-won`: la coda la dichiara il consumer.
+- `POST /dev/deals/{id}/close-won` on the CRM moves the deal to `ClosedWon` and publishes `deal-closed-won` (topic exchange `deal-closed-won`, `message-id = {dealId}:{revision}`). The orchestrator worker consumes from the `o2c.orchestrator.deal-closed-won` queue (`prefetch = 1`, up to 3 retries, then `o2c.orchestrator.deal-closed-won.dlq`).
+- Workflow: **IntakeAgent** (`get_deal`, `get_company`; `report_discarded` if the deal is not valid) → **FulfillmentAgent** (`check_stock`; unknown SKU → `report_failed`) → **OrderAgent** (customer, order, `update_deal`). `Discarded` / `Failed` outcomes are verified and written to the CRM by the orchestrator, not the model.
+- `O2C_AGENT_MODE=single` re-enables the single agent from phase 3 (for comparison); the default is `multi`.
+- State lives in `orch.WorkflowState` (one row per deal and revision): a duplicate event does not start a second workflow, while the CLI reprocesses onto the same row.
+- Trace shape: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` per agent, `agent.handoff` (`handoff.from`, `handoff.to`, `handoff.reason`), `tool.call`, MCP calls → `Erp.Api`.
+- **Repeating the demo**: `POST /dev/reset` on ERP and CRM does **not** clear `orch.WorkflowState`. To re-run the same deal from an event, either run `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` (with the AppHost stopped) or delete the `orch.WorkflowState` rows.
+- On a freshly started AppHost, wait for the orchestrator's "listening on o2c.orchestrator.deal-closed-won" log line in the dashboard before the first `close-won`: the queue is declared by the consumer.
 
 ## Demo
 
-Scenari, dati demo e reset sono descritti in [docs/demo.md](docs/demo.md). Richieste pronte:
+Scenarios, demo data and reset are described in [docs/demo.md](docs/demo.md) (Italian). Ready-made requests:
 
-- `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` — API dell'ERP: clienti, giacenze, ordini (compreso il doppio POST con la stessa `idempotencyKey`).
-- `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http` — endpoint dev del CRM mock (solo Development): deal, chiusura `ClosedWon`, reset.
+- `src/Dusiburg.AI.O2C.Erp.Api/Erp.Api.http` — ERP API: customers, stock, orders (including the double POST with the same `idempotencyKey`).
+- `src/Dusiburg.AI.O2C.Crm.Mcp/Crm.Mcp.dev.http` — dev endpoints of the mock CRM (Development only): deals, `ClosedWon` closure, reset.
 
-Per ripetere la demo senza ricreare il database: `POST /dev/reset` su Erp.Api e Crm.Mcp; per ripartire da zero si rilancia `DbInit`.
+To repeat the demo without recreating the database: `POST /dev/reset` on Erp.Api and Crm.Mcp; to start over completely, re-run `DbInit`.
 
-## Specifiche degli agenti
+## Agent specifications
 
-Le istruzioni che ogni agente riceve non stanno nel codice: sono un documento per agente in
-`src/Dusiburg.AI.O2C.Orchestrator/Agents/Specs`, pensato per essere letto e discusso anche da chi non sviluppa.
+The instructions each agent receives do not live in code: they are one document per agent under
+`src/Dusiburg.AI.O2C.Orchestrator/Agents/Specs`, meant to be read and discussed by non-developers too.
 
-| File | Agente |
-|------|--------|
-| `IntakeAgent.agent.md` | Valida il deal CRM |
-| `FulfillmentAgent.agent.md` | Verifica le giacenze di ogni riga |
-| `OrderAgent.agent.md` | Cliente, ordine ERP e aggiornamento del deal |
-| `SingleOrderAgent.agent.md` | Agente unico della Fase 3 (`O2C_AGENT_MODE=single`) |
+| File | Agent |
+|------|-------|
+| `IntakeAgent.agent.md` | Validates the CRM deal |
+| `FulfillmentAgent.agent.md` | Checks stock for every line |
+| `OrderAgent.agent.md` | Customer, ERP order and deal update |
+| `SingleOrderAgent.agent.md` | The single agent from phase 3 (`O2C_AGENT_MODE=single`) |
 
-Come si legge un file:
+How to read one:
 
-- il **titolo** è il nome dell'agente e la **citazione** sotto di esso la sua descrizione;
-- ogni `## Sezione` è un testo che il modello riceve: `## Instructions` sono gli ordini, `## Handoff` la condizione
-  con cui l'agente passa la mano al successivo;
-- `## Note (non inviate al modello)` è commento per chi legge — non arriva da nessuna parte, ed è lì che stanno le
-  spiegazioni in italiano mentre il prompt resta in inglese.
+- the **title** is the agent's name and the **quote** below it is its description;
+- every `## Section` is text the model receives: `## Instructions` are the orders, `## Handoff` the condition under which the agent passes the baton to the next one;
+- `## Note (non inviate al modello)` is commentary for the reader — it goes nowhere, and it is where the Italian explanations sit while the prompt itself stays in English.
 
-I file sono inclusi come **risorse dell'assembly**: a runtime non si legge nulla dal disco, quindi una modifica al
-testo richiede di ricompilare. Quello che tiene a freno gli agenti — quali tool ciascuno può chiamare, il verdetto di
-arresto, l'ordine della catena — resta invece nel codice (`WorkflowAgents`), perché un refuso lì deve restare un
-errore di compilazione. `AgentSpecTests` fa fallire la build se una specifica è incompleta o malformata.
+The files ship as **assembly resources**: nothing is read from disk at runtime, so changing the text means recompiling. What keeps the agents on rails — which tools each may call, the stop verdict, the order of the chain — stays in code (`WorkflowAgents`), because a typo there has to remain a compile error. `AgentSpecTests` fails the build if a specification is incomplete or malformed.
 
-Prima di tenere una modifica al testo conviene misurarla con il replay descritto qui sotto: confronta il
-comportamento del prompt vecchio e di quello nuovo sulle stesse conversazioni.
+Before keeping a change to the text, measure it with the replay described below: it compares the behaviour of the old and new prompt over the same conversations.
 
-## Cattura e replay dei prompt
+## Prompt capture and replay
 
-Servono a capire **che cosa** arriva davvero al modello quando un agente si comporta male, e a misurare una correzione invece di indovinarla (D62).
+These exist to find out **what** actually reaches the model when an agent misbehaves, and to measure a fix instead of guessing at it.
 
-- **Cattura**: con `O2C_PROMPT_CAPTURE_DIR` valorizzata, l'orchestratore scrive in quella cartella ogni richiesta inviata al modello. Senza la variabile non si cattura nulla. Come le altre manopole della demo (D52) si imposta **sull'AppHost**, che la inoltra all'orchestratore:
+- **Capture**: when `O2C_PROMPT_CAPTURE_DIR` is set, the orchestrator writes every request sent to the model into that folder. Without the variable nothing is captured. Like the other demo knobs it is set **on the AppHost**, which forwards it to the orchestrator:
 
   ```powershell
   $env:O2C_PROMPT_CAPTURE_DIR = 'C:\Temp\o2c-capture'
   dotnet run --project src/Dusiburg.AI.O2C.AppHost
   ```
 
-  > I file contengono i dati di business del run (deal, aziende, prezzi): tenerli fuori dal repository.
+  > The files contain the run's business data (deals, companies, prices): keep them out of the repository.
 
-- **Replay**: `tools/Dusiburg.AI.O2C.PromptReplay` rimanda al modello le conversazioni di `Cases/` e controlla quale sia la prima chiamata di ogni risposta, ripetendo N volte. Esce 0 se ogni caso dà sempre la chiamata attesa, 1 altrimenti.
+- **Replay**: `tools/Dusiburg.AI.O2C.PromptReplay` replays the conversations in `Cases/` against the model and checks which call comes first in each response, repeating N times. It exits 0 if every case always produces the expected call, 1 otherwise.
 
-Il provider è quello dell'orchestratore e **il default è `anthropic`**: per il giro sul modello locale va impostata `MODEL_PROVIDER`.
+The provider is the orchestrator's, and **the default is `anthropic`**: set `MODEL_PROVIDER` for a run against the local model.
 
 ```powershell
 $env:MODEL_PROVIDER = 'ollama'
 dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5
-dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --no-filter          # senza il filtro della catena
-dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --captured-instructions   # con le istruzioni del run catturato
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --no-filter          # without the chain filter
+dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --captured-instructions   # with the captured run's instructions
 dotnet run --project tools/Dusiburg.AI.O2C.PromptReplay -- --repeat 5 --case fulfillment-d1003-so-i-can
 ```
 
-## Build e test
+## Build and test
 
 ```powershell
-dotnet build Dusiburg.AI.O2C.slnx   # warning trattati come errori
-dotnet test --solution Dusiburg.AI.O2C.slnx   # NUnit su Microsoft.Testing.Platform
+dotnet build Dusiburg.AI.O2C.slnx   # warnings as errors
+dotnet test --solution Dusiburg.AI.O2C.slnx   # NUnit on Microsoft.Testing.Platform
 ```
 
-Code coverage: in Visual Studio da **Test → Analizza code coverage per tutti i test**; da riga di comando `dotnet test --solution Dusiburg.AI.O2C.slnx --coverage` (file `.coverage` in `TestResults/`, esclusa da git).
+Code coverage: in Visual Studio via **Test → Analyze code coverage for all tests**; from the command line `dotnet test --solution Dusiburg.AI.O2C.slnx --coverage` (`.coverage` files in `TestResults/`, excluded from git).
 
-## Convenzioni trasversali
+## Cross-cutting conventions
 
-- **Correlazione**: header `x-correlation-id` su ogni chiamata HTTP/MCP, letto o generato (GUID v7) dal middleware `UseCorrelationId()`, propagato in uscita da `CorrelationIdDelegatingHandler`, esposto come attributo `correlation.id` su span e scope di log.
-- **Idempotenza**: `IdempotencyKey.From(dealId, revision)` → `o2c-D-1001-r3`, calcolata dal codice e mai dal modello.
-- **Errori dei tool**: sempre `{ "error": { "code", "message" } }`, codici in `ToolErrorCodes`; sui server MCP come risultato `isError = true` con l'envelope nel testo, prodotto dal filtro comune di `Mcp.Hosting` (nessuna eccezione arriva al client).
-- **Telemetria**: sorgenti `Dusiburg.AI.O2C.*`, attributi `agent.name`, `tool.name`, `correlation.id`, `tool.outcome`.
-- **Segreti**: solo user-secrets in locale.
+- **Correlation**: an `x-correlation-id` header on every HTTP/MCP call, read or generated (GUID v7) by the `UseCorrelationId()` middleware, propagated outbound by `CorrelationIdDelegatingHandler`, exposed as the `correlation.id` attribute on spans and log scopes.
+- **Idempotency**: `IdempotencyKey.From(dealId, revision)` → `o2c-D-1001-r3`, computed by code and never by the model.
+- **Tool errors**: always `{ "error": { "code", "message" } }`, with codes in `ToolErrorCodes`; on the MCP servers as an `isError = true` result carrying the envelope in the text, produced by the shared filter in `Mcp.Hosting`.
+- **Telemetry**: sources `Dusiburg.AI.O2C.*`, attributes `agent.name`, `tool.name`, `correlation.id`, `tool.outcome`.
+- **Secrets**: user-secrets only, locally.
+
+## Further documentation (Italian)
+
+- [docs/il-progetto-in-breve.md](docs/il-progetto-in-breve.md) — what the system does and why it is built this way, for non-developers.
+- [docs/regole-di-approvazione.md](docs/regole-di-approvazione.md) — when an approval is required, rule by rule.
+- [docs/architettura.md](docs/architettura.md) — the specification, and the source of truth.
+- [docs/demo.md](docs/demo.md) — demo scenarios and data.
+
+## License
+
+[MIT](LICENSE) © Mauro Dusi
