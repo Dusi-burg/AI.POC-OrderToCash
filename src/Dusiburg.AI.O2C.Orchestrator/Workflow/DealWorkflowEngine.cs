@@ -50,6 +50,9 @@ public sealed class DealWorkflowEngine(
 
     private const string HandoffToolPrefix = "handoff_to";
 
+    /// <summary>Quanto si aspetta che il run dica altro — l'inizio del batch successivo, o il resto di quello in corso — prima di considerarlo fermo.</summary>
+    private static readonly TimeSpan QuietGrace = TimeSpan.FromMilliseconds(250);
+
     public async Task<IReadOnlyList<AgentTool>> GetToolsAsync(CancellationToken cancellationToken) =>
         await toolCatalog.GetToolsAsync(cancellationToken);
 
@@ -74,32 +77,39 @@ public sealed class DealWorkflowEngine(
     /// <summary>
     /// Consuma gli eventi del run fino alla sua fine: span per agente, handoff dai tool di trasferimento e — quando il
     /// framework espone una richiesta di approvazione — decisione della policy, che approva subito o ferma il workflow.
+    /// <para>
+    /// Il framework chiude lo stream alla fine di ogni <i>batch</i> di input, e un run ne ha più di uno: i messaggi
+    /// iniziali sono un batch, il <c>TurnToken</c> che fa partire gli agenti ne è un altro, e ogni risposta a una
+    /// richiesta esterna ne apre un altro ancora. Chi si ferma al primo giro non vede gli eventi dei batch successivi —
+    /// handoff, fasi e richieste di approvazione comprese — quindi lo stream si riapre finché il run ha ancora da fare.
+    /// </para>
     /// </summary>
     public async Task<WorkflowPumpResult> PumpAsync(
         StreamingRun run, DealRunContext context, IReadOnlyList<AgentTool> tools, CancellationToken cancellationToken, ApprovalAnswer? answer = null)
     {
         var tracker = new AgentTracker();
         var result = WorkflowPumpResult.Ran;
+        var batch = 0;
 
         try
         {
-            await foreach (var workflowEvent in run.WatchStreamAsync(cancellationToken))
+            while (true)
             {
-                switch (workflowEvent)
+                // Il primo giro ha gli eventi del batch già in coda; dai successivi si aspetta l'inizio del prossimo
+                // batch solo per il tempo di grazia, altrimenti un run concluso lascerebbe il chiamante in attesa.
+                var watched = await WatchBatchAsync(
+                    run, context, tools, tracker, result, answer, batch++ == 0 ? Timeout.InfiniteTimeSpan : QuietGrace, cancellationToken);
+
+                result = watched.Result;
+
+                if (result.Suspended is not null || context.IsTerminal)
                 {
-                    case RequestInfoEvent request when result.Suspended is null:
-                        result = await HandleApprovalRequestAsync(run, request.Request, context, tools, answer, cancellationToken);
-                        break;
+                    return result;
+                }
 
-                    // Lo stream di un run con richieste pendenti, o già arrivato ai fatti che chiudono il workflow, resta
-                    // aperto in attesa di un'altra interazione: smettere di consumarlo al termine del superstep è ciò
-                    // che permette al chiamante di andare avanti. Il superstep è committato, quindi il checkpoint c'è.
-                    case SuperStepCompletedEvent when result.Suspended is not null || context.IsTerminal:
-                        return result;
-
-                    case AgentResponseUpdateEvent update:
-                        await TrackAgentAsync(update, context, tracker, cancellationToken);
-                        break;
+                if (!watched.SawEvents && await run.GetStatusAsync(cancellationToken) is not (RunStatus.Running or RunStatus.PendingRequests))
+                {
+                    return result;
                 }
             }
         }
@@ -107,8 +117,69 @@ public sealed class DealWorkflowEngine(
         {
             tracker.Dispose();
         }
+    }
 
-        return result;
+    /// <summary>Esito di un giro di stream e se quel giro ha visto eventi: un giro a vuoto dice che il run è fermo.</summary>
+    private readonly record struct WatchedBatch(WorkflowPumpResult Result, bool SawEvents);
+
+    /// <summary>
+    /// Consuma un giro di stream: finisce con il batch di input in corso, prima se il run è già concluso, oppure — se
+    /// entro <paramref name="grace"/> non arriva nulla — senza aver visto eventi. Interrompere l'ascolto non ferma il run.
+    /// </summary>
+    private async Task<WatchedBatch> WatchBatchAsync(
+        StreamingRun run,
+        DealRunContext context,
+        IReadOnlyList<AgentTool> tools,
+        AgentTracker tracker,
+        WorkflowPumpResult result,
+        ApprovalAnswer? answer,
+        TimeSpan grace,
+        CancellationToken cancellationToken)
+    {
+        using var watch = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+
+        watch.CancelAfter(grace);
+
+        var sawEvents = false;
+
+        try
+        {
+            await foreach (var workflowEvent in run.WatchStreamAsync(watch.Token))
+            {
+                if (!sawEvents)
+                {
+                    // Il tempo di grazia vale solo per il primo evento: una volta partito, il batch lo si segue fino in fondo.
+                    sawEvents = true;
+                    watch.CancelAfter(Timeout.InfiniteTimeSpan);
+                }
+
+                switch (workflowEvent)
+                {
+                    case RequestInfoEvent request when result.Suspended is null:
+                        result = await HandleApprovalRequestAsync(run, request.Request, context, tools, answer, cancellationToken);
+                        break;
+
+                    case AgentResponseUpdateEvent update:
+                        await TrackAgentAsync(update, context, tracker, cancellationToken);
+                        break;
+                }
+
+                if (result.Suspended is not null || context.IsTerminal)
+                {
+                    // Lo stream di un run con richieste pendenti, o già arrivato ai fatti che chiudono il workflow, resta
+                    // aperto in attesa di un'altra interazione: il chiamante può andare avanti, ma prima si finisce di
+                    // leggere ciò che il run ha già prodotto. Il run corre per conto suo e può essere arrivato ai fatti
+                    // finali mentre qui si è ancora ai primi eventi: uscire subito perderebbe handoff e fasi di mezzo.
+                    watch.CancelAfter(QuietGrace);
+                }
+            }
+        }
+        catch (OperationCanceledException) when (watch.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+        {
+            // Tempo di grazia scaduto senza che il batch successivo sia partito: il run non ha altro da consegnare.
+        }
+
+        return new WatchedBatch(result, sawEvents);
     }
 
     /// <summary>Agente corrente del run e span aperto su di lui: vive quanto il consumo degli eventi.</summary>
