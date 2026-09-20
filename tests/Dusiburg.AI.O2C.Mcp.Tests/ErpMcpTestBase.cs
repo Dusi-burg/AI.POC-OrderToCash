@@ -54,7 +54,9 @@ public abstract class ErpMcpTestBase
                 services.AddHttpClient<ErpApiClient>().ConfigurePrimaryHttpMessageHandler(() => Upstream);
 
                 // Stessa pipeline di resilienza di ServiceDefaults, con attese brevi: 500 e timeout non devono rallentare i test.
-                services.Configure<HttpStandardResilienceOptions>($"{nameof(ErpApiClient)}-standard", options =>
+                // Va configurata con ConfigureAll, come in Crm.Web: la pipeline nasce da ConfigureHttpClientDefaults, dove il
+                // builder non ha il nome del client, quindi le sue opzioni non stanno sotto il nome del client tipizzato.
+                services.ConfigureAll<HttpStandardResilienceOptions>(options =>
                 {
                     options.Retry.MaxRetryAttempts = 1;
                     options.Retry.Delay = TimeSpan.Zero;

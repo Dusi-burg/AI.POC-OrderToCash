@@ -115,14 +115,8 @@ public sealed class ApprovalResumeRunner(
         await using (var run = await InProcessExecution.ResumeStreamingAsync(
             setup.Workflow, new CheckpointInfo(approval.CorrelationId, checkpointId), checkpoints, cancellationToken))
         {
-            // Il run ripreso riemette la richiesta pendente; la risposta viene elaborata nel superstep successivo, e il
-            // primo giro dello stream può chiudersi appena la risposta è in coda: in quel caso serve un secondo giro.
+            // Il run ripreso riemette la richiesta pendente; la risposta apre un altro batch, che il pump segue da sé.
             await engine.PumpAsync(run, context, setup.Tools, cancellationToken, answer);
-
-            if (!context.IsTerminal)
-            {
-                await engine.PumpAsync(run, context, setup.Tools, cancellationToken, answer);
-            }
         }
 
         var result = await engine.CompleteAsync(context, setup.Tools, setup.Model, cancellationToken);
