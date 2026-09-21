@@ -42,6 +42,7 @@ public class ForeignAgentTextFilterTests
         [
             new(ChatRole.User, "Process CRM deal D-1003."),
             new(ChatRole.Assistant, "I checked the stock.") { AuthorName = Fulfillment },
+            new(ChatRole.Assistant, [new TextReasoningContent("Stock is enough."), new TextContent("Done.")]) { AuthorName = Fulfillment },
             new(ChatRole.User, "User did not respond. Continue assisting autonomously."),
             new(ChatRole.User, "Note from someone else.") { AuthorName = "Operator" }
         ];
@@ -82,6 +83,45 @@ public class ForeignAgentTextFilterTests
         Assert.That(model.Requests, Has.Count.EqualTo(2));
         Assert.That(model.Requests.Select(r => r.Count), Is.All.EqualTo(5));
         Assert.That(model.Requests.SelectMany(r => r).Select(m => m.Text), Has.None.Contains("hand off"));
+    }
+
+    [Test]
+    public void Filter_RemovesTheReasoningOfOtherAgentsSoNoMessageIsLeftWithOnlyThinking()
+    {
+        //SETUP
+        // Turno con cui Intake chiude e passa la mano come torna da Claude: ragionamento e testo, nessuna chiamata.
+        List<ChatMessage> conversation =
+        [
+            new(ChatRole.User, "Process CRM deal D-1003."),
+            new(ChatRole.Assistant, [new TextReasoningContent("The lines add up to 5300."), new TextContent("The deal is valid, handing off.")]) { AuthorName = Intake }
+        ];
+
+        //SUT
+        List<ChatMessage> filtered = ForeignAgentTextFilter.Filter(conversation, Fulfillment, WorkflowAgents.Names);
+
+        Assert.That(filtered.Select(m => m.Role), Is.EqualTo(new[] { ChatRole.User }),
+            "il turno di solo discorso sparisce: restando col solo blocco di thinking l'API Anthropic risponde 400");
+        Assert.That(filtered.SelectMany(m => m.Contents), Has.None.InstanceOf<TextReasoningContent>());
+    }
+
+    [Test]
+    public void Filter_KeepsTheToolCallOfAnotherAgentTurnThatAlsoReasoned()
+    {
+        //SETUP
+        List<ChatMessage> conversation =
+        [
+            new(ChatRole.Assistant, [
+                new TextReasoningContent("I need the deal first."),
+                new TextContent("Reading the deal."),
+                new FunctionCallContent("c1", "get_deal", new Dictionary<string, object?> { ["dealId"] = "D-1003" })])
+            { AuthorName = Intake }
+        ];
+
+        //SUT
+        List<ChatMessage> filtered = ForeignAgentTextFilter.Filter(conversation, Fulfillment, WorkflowAgents.Names);
+
+        Assert.That(filtered.Single().Contents.Select(c => c.GetType()), Is.EqualTo(new[] { typeof(FunctionCallContent) }),
+            "del turno resta il fatto: la chiamata al tool");
     }
 
     /// <summary>Conversazione vista da FulfillmentAgent dopo l'handoff: fatti di Intake più il suo testo finale come messaggio utente.</summary>
