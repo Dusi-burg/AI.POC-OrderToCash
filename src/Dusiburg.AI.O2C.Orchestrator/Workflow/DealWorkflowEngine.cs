@@ -170,6 +170,15 @@ public sealed class DealWorkflowEngine(
                     // aperto in attesa di un'altra interazione: il chiamante può andare avanti, ma prima si finisce di
                     // leggere ciò che il run ha già prodotto. Il run corre per conto suo e può essere arrivato ai fatti
                     // finali mentre qui si è ancora ai primi eventi: uscire subito perderebbe handoff e fasi di mezzo.
+                    //
+                    // Scaduta la grazia, la cancellazione arriva fino alla richiesta HTTP in streaming ancora aperta verso
+                    // il modello, che stava scrivendo un messaggio di chiusura ormai inutile. Il client la chiude dal suo
+                    // lato, quindi nel dashboard compaiono un warning e uno span in errore di
+                    // Microsoft.Extensions.AI.OpenTelemetryChatClient (gen_ai.client.operation.exception →
+                    // TaskCanceledException, con dentro SocketException 995: I/O interrotto su richiesta
+                    // dell'applicazione, non una connessione caduta né un timeout). È atteso e non è un fallimento della
+                    // pratica: la telemetria del chat client sta sotto a questo ciclo e registra l'eccezione prima che il
+                    // catch qui sotto la assorba. Su una run riuscita la si vede subito prima dell'esito positivo.
                     watch.CancelAfter(QuietGrace);
                 }
             }
