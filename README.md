@@ -10,6 +10,50 @@ An **agentic Order-to-Cash** proof of concept: when a deal moves to *Closed Won*
 
 > **Status**: phases 0–6 complete. The flow runs end-to-end from the browser: **Close won** on a deal in `Crm.Web` publishes `deal-closed-won` on RabbitMQ, the IntakeAgent → FulfillmentAgent → OrderAgent workflow calls the MCP tools of `Erp.Mcp` and `Crm.Mcp`, **human approval** suspends and resumes the run from `Approvals.Web`, and the outcome is written back onto the deal. Next up: phase 7 — Azure deployment and observability.
 
+```mermaid
+flowchart LR
+    rep(["Sales rep"]) --> crmweb["Crm.Web<br/>Close won"]
+    crmweb --> mq[["RabbitMQ<br/>deal-closed-won"]]
+    mq --> intake
+
+    subgraph orch["Orchestrator · agent handoff"]
+        direction TB
+        intake["IntakeAgent<br/>validate the deal"]
+        fulfil["FulfillmentAgent<br/>check stock"]
+        order["OrderAgent<br/>customer + order"]
+        intake -->|handoff| fulfil
+        fulfil -->|handoff| order
+    end
+
+    model{{"IChatClient<br/>Claude API · local Ollama"}}
+    crmmcp["Crm.Mcp<br/>get_deal · update_deal"]
+    erpmcp["Erp.Mcp<br/>check_stock · create_order"]
+    erpapi["Erp.Api"]
+    db[("SQL Server LocalDB<br/>erp · crm · orch")]
+    gate{"ApprovalPolicy<br/>in code, not in the prompt"}
+    approver(["Approver<br/>Approvals.Web"])
+
+    orch <-.-> model
+    intake --> crmmcp
+    fulfil --> erpmcp
+    order --> gate
+    order --> crmmcp
+    gate -->|"no rule fires"| erpmcp
+    gate -->|"a rule fires:<br/>the run suspends"| approver
+    approver -.->|"approve / reject"| gate
+    erpmcp --> erpapi
+    erpapi --> db
+    crmmcp --> db
+
+    classDef system fill:#eef4ff,stroke:#5b7fbd,color:#1b2a44
+    classDef human fill:#fff4e5,stroke:#c98a2b,color:#4a3411
+    class orch system
+    class rep,approver human
+```
+
+The model proposes, the code decides: the thresholds live in `ApprovalPolicy`, the total is recomputed from the
+proposed lines and the stock is re-read by the system, never taken from the agent's own summary.
+
 ## Why this POC is interesting
 
 - **Two real MCP servers**, not tool stubs: Streamable HTTP transport, API-key auth, a shared call filter, structured error envelopes and published output schemas.
@@ -38,6 +82,42 @@ An **agentic Order-to-Cash** proof of concept: when a deal moves to *Closed Won*
 | `tools/Dusiburg.AI.O2C.DbInit` | Creates the `O2C` database from scratch off the EF model (no migrations) |
 | `tools/Dusiburg.AI.O2C.PromptReplay` | Replays captured requests against the model and measures the first call of each response |
 | `tests/*` | NUnit 4 with `Assert.That` (NUnit runner on Microsoft.Testing.Platform) |
+
+## Local topology
+
+One C# AppHost composes every service, wires service discovery and environment variables between them, and ships
+the OpenTelemetry traces to its dashboard. Database and broker join as external resources through connection
+strings, so a single `dotnet run` brings the whole POC up.
+
+```mermaid
+flowchart TB
+    subgraph apphost["Dusiburg.AI.O2C.AppHost · .NET Aspire"]
+        direction LR
+        erpapi["Erp.Api<br/>:5101"]
+        erpmcp["Erp.Mcp<br/>:5102"]
+        crmmcp["Crm.Mcp<br/>:5103"]
+        approvals["Approvals.Web<br/>:5104"]
+        crmweb["Crm.Web<br/>:5105"]
+        erpweb["Erp.Web<br/>:5106"]
+        orchestrator["Orchestrator<br/>worker"]
+    end
+
+    dash["Aspire dashboard<br/>traces · logs · metrics"]
+
+    subgraph ext["External resources · connection strings"]
+        db[("SQL Server LocalDB<br/>O2C · erp / crm / orch")]
+        mq[["RabbitMQ in WSL<br/>session held open by the AppHost"]]
+    end
+
+    model{{"Model endpoint<br/>the only external dependency<br/>with no local equivalent"}}
+
+    apphost -->|OTLP| dash
+    apphost --> ext
+    orchestrator --> model
+
+    classDef system fill:#eef4ff,stroke:#5b7fbd,color:#1b2a44
+    class apphost,ext system
+```
 
 ## Prerequisites
 
@@ -151,9 +231,37 @@ $env:MODEL_PROVIDER = "ollama"; dotnet run --project src/Dusiburg.AI.O2C.Orchest
 - Workflow: **IntakeAgent** (`get_deal`, `get_company`; `report_discarded` if the deal is not valid) → **FulfillmentAgent** (`check_stock`; unknown SKU → `report_failed`) → **OrderAgent** (customer, order, `update_deal`). `Discarded` / `Failed` outcomes are verified and written to the CRM by the orchestrator, not the model.
 - `O2C_AGENT_MODE=single` re-enables the single agent from phase 3 (for comparison); the default is `multi`.
 - State lives in `orch.WorkflowState` (one row per deal and revision): a duplicate event does not start a second workflow, while the CLI reprocesses onto the same row.
-- Trace shape: `publish deal.closed-won` (CRM) → `o2c.process_deal` → `agent.run` per agent, `agent.handoff` (`handoff.from`, `handoff.to`, `handoff.reason`), `tool.call`, MCP calls → `Erp.Api`.
 - **Repeating the demo**: `POST /dev/reset` on ERP and CRM does **not** clear `orch.WorkflowState`. To re-run the same deal from an event, either run `dotnet run --project tools/Dusiburg.AI.O2C.DbInit` (with the AppHost stopped) or delete the `orch.WorkflowState` rows.
 - On a freshly started AppHost, wait for the orchestrator's "listening on o2c.orchestrator.deal-closed-won" log line in the dashboard before the first `close-won`: the queue is declared by the consumer.
+
+One trace covers a whole deal, and every span carries the same `correlation.id`, so a run reads as a waterfall in
+the dashboard instead of as scattered logs:
+
+```mermaid
+flowchart TB
+    p["publish deal.closed-won<br/>Crm.Mcp"] --> root
+
+    subgraph trace["o2c.process_deal · one trace per deal and revision"]
+        direction TB
+        root["o2c.process_deal"]
+        root --> a1["agent.run<br/>IntakeAgent"]
+        a1 --> t1["tool.call get_deal"]
+        t1 --> m1["mcp.tool get_deal<br/>Crm.Mcp"]
+        a1 --> h1["agent.handoff<br/>handoff.from · handoff.to · handoff.reason"]
+        root --> a2["agent.run<br/>FulfillmentAgent"]
+        a2 --> t2["tool.call check_stock"]
+        t2 --> m2["mcp.tool check_stock<br/>Erp.Mcp"]
+        m2 --> e2["GET /stock/{sku}<br/>Erp.Api"]
+        a2 --> h2["agent.handoff"]
+        root --> a3["agent.run<br/>OrderAgent"]
+        a3 --> t3["tool.call create_order"]
+        t3 --> m3["mcp.tool create_order<br/>Erp.Mcp"]
+        m3 --> e3["POST /orders<br/>Erp.Api"]
+    end
+
+    classDef system fill:#eef4ff,stroke:#5b7fbd,color:#1b2a44
+    class trace system
+```
 
 ## Demo
 
