@@ -44,8 +44,8 @@ public class ErpWebTests
         //SETUP
         _erp.Json(HttpMethod.Get, "/api/views/customers", new[]
         {
-            new CustomerSummaryView(1, "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "a@b.it", 50_000m, false, 1),
-            new CustomerSummaryView(5, "Fonderia Emiliana S.r.l.", "IT05678900375", "c@d.it", 30_000m, true, 0)
+            new CustomerSummaryView(1, "Officine Meccaniche Brambilla S.r.l.", "IT01000010007", "a@b.it", 50_000m, false, 1),
+            new CustomerSummaryView(5, "Fonderia Emiliana S.r.l.", "IT01000070001", "c@d.it", 30_000m, true, 0)
         });
         _erp.Json(HttpMethod.Get, "/api/views/orders", new[] { Order("SO-2026-000001", OrderStatus.Confirmed, "D-1001") });
         _erp.Json(HttpMethod.Get, "/api/views/stock?shortOnly=true", new[] { Stock("IND-MOT-004", onHand: 0, reserved: 0) });
@@ -131,7 +131,7 @@ public class ErpWebTests
     {
         //SETUP
         _erp.Json(HttpMethod.Get, "/api/views/customers/5", new CustomerDetailView(
-            5, "Fonderia Emiliana S.r.l.", "IT05678900375", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210", 30_000m, true,
+            5, "Fonderia Emiliana S.r.l.", "IT01000070001", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210", 30_000m, true,
             [Order("SO-2026-000003", OrderStatus.Confirmed, "D-1005")]));
         using HttpClient client = _factory.CreateClient();
 

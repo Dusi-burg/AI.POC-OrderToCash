@@ -30,7 +30,7 @@ internal sealed class FakeO2CTools(
         [new DealLineItemDto("IND-BRG-001", 40, 12m)]);
 
     public static readonly CustomerDto Customer =
-        new(1, "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", 50_000m, false);
+        new(1, "Officine Meccaniche Brambilla S.r.l.", "IT01000010007", "acquisti@brambilla-om.it", 50_000m, false);
 
     private readonly DealDto _deal = deal ?? Deal;
     private readonly CustomerDto _customer = customer ?? Customer;
@@ -51,7 +51,7 @@ internal sealed class FakeO2CTools(
     [
         Tool(AgentToolNames.GetDeal, (string dealId) => Json(_deal)),
         Tool(AgentToolNames.GetCompany, (string companyId) => Json(
-            new CompanyDto(companyId, "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", "Via dell'Industria 12"))),
+            new CompanyDto(companyId, "Officine Meccaniche Brambilla S.r.l.", "IT01000010007", "acquisti@brambilla-om.it", "Via dell'Industria 12"))),
         Tool(AgentToolNames.CheckStock, (string sku, int quantity) => sku == unknownSku
             ? Json(ToolErrorResponse.Create(ToolErrorCodes.NotFound, $"SKU {sku} non trovato."))
             : Json(sku == unavailableSku ? new StockCheckDto(sku, false, 0, 30) : new StockCheckDto(sku, true, 500, 3))),

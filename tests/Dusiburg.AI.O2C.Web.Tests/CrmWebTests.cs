@@ -147,14 +147,14 @@ public class CrmWebTests
     {
         //SETUP
         _crm.Json(HttpMethod.Get, "/api/views/companies/C-02", new CompanyDetailView(
-            "C-02", "Cartiera del Brenta S.p.A.", "IT04567890280", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3",
+            "C-02", "Cartiera del Brenta S.p.A.", "IT01000020006", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3",
             [Deal("D-1002", DealStage.ContractSent)]));
         using HttpClient client = _factory.CreateClient();
 
         //SUT
         string page = await client.GetStringAsync("/companies/C-02", CancellationToken);
 
-        Assert.That(page, Does.Contain("Cartiera del Brenta S.p.A.").And.Contain("IT04567890280").And.Contain("href=\"/deals/D-1002\""));
+        Assert.That(page, Does.Contain("Cartiera del Brenta S.p.A.").And.Contain("IT01000020006").And.Contain("href=\"/deals/D-1002\""));
     }
 
     [TestCase("Won", "chiuso come vinto", "alert-success")]

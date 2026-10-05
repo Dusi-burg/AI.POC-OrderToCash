@@ -27,7 +27,7 @@ public class DealWorkflowRunnerTests
             [WorkflowAgents.Intake.Name] = Script(Call("i1", "get_deal", new() { ["dealId"] = "D-1001" }), Call("i2", "get_company", new() { ["companyId"] = "C-01" }), Handoff("i3", "Deal is valid.")),
             [WorkflowAgents.Fulfillment.Name] = Script(Call("f1", "check_stock", new() { ["sku"] = "IND-BRG-001", ["quantity"] = 40 }), Handoff("f2", "Stock checked.")),
             [WorkflowAgents.Order.Name] = Script(
-                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01234560157" }),
+                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01000010007" }),
                 Call("o2", "create_order", new() { ["customerId"] = 1, ["lines"] = Lines, ["idempotencyKey"] = "invented", ["externalRef"] = "D-9999" }),
                 Call("o3", "update_deal", new() { ["dealId"] = "D-1001", ["status"] = "OrderCreated", ["erpOrderNumber"] = FakeO2CTools.OrderNumber, ["note"] = "ok" }))
         });

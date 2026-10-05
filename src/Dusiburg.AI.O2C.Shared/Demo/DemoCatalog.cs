@@ -37,28 +37,28 @@ public static class DemoCatalog
 
     public static IReadOnlyList<DemoCustomer> Customers { get; } =
     [
-        new("Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", "Via dell'Industria 12, 20054 Segrate (MI)", 50_000m, IsBlocked: false),
-        new("Tessitura Valle Seriana S.p.A.", "IT02345670163", "ordini@tessituravs.it", "Via Provinciale 45, 24021 Albino (BG)", 80_000m, IsBlocked: false),
-        new("Automazioni Nord-Est S.r.l.", "IT03456780268", "purchasing@automazioni-ne.it", "Viale Venezia 88, 31100 Treviso (TV)", 60_000m, IsBlocked: false),
-        new("Cartiera del Brenta S.p.A.", "IT04567890280", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3, 35010 Vigonza (PD)", 120_000m, IsBlocked: false),
-        new("Fonderia Emiliana S.r.l.", "IT05678900375", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210, 41123 Modena (MO)", 30_000m, IsBlocked: true),
-        new("Imballaggi Tirreno S.r.l.", "IT06789010484", "ordini@imballaggitirreno.it", "Via Aurelia 150, 57121 Livorno (LI)", 40_000m, IsBlocked: false),
-        new("Plastiche Adriatiche S.r.l.", "IT07890120418", "acquisti@plasticheadriatiche.it", "Strada Montefeltro 21, 61122 Pesaro (PU)", 35_000m, IsBlocked: false),
-        new("Meccanica di Precisione Torinese S.p.A.", "IT08901230019", "supply@mptorinese.it", "Corso Francia 300, 10146 Torino (TO)", 90_000m, IsBlocked: false),
-        new("Agroalimentare Salento S.r.l.", "IT09012340751", "ordini@agrosalento.it", "Via Lecce-Surbo 7, 73100 Lecce (LE)", 25_000m, IsBlocked: false),
-        new("Lavorazioni Lamiera Friuli S.r.l.", "IT10123450302", "acquisti@lamierafriuli.it", "Via Pradamano 55, 33100 Udine (UD)", 45_000m, IsBlocked: false),
+        new("Officine Meccaniche Brambilla S.r.l.", "IT01000010007", "acquisti@brambilla-om.it", "Via dell'Industria 12, 20054 Segrate (MI)", 50_000m, IsBlocked: false),
+        new("Tessitura Valle Seriana S.p.A.", "IT01000050003", "ordini@tessituravs.it", "Via Provinciale 45, 24021 Albino (BG)", 80_000m, IsBlocked: false),
+        new("Automazioni Nord-Est S.r.l.", "IT01000030005", "purchasing@automazioni-ne.it", "Viale Venezia 88, 31100 Treviso (TV)", 60_000m, IsBlocked: false),
+        new("Cartiera del Brenta S.p.A.", "IT01000020006", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3, 35010 Vigonza (PD)", 120_000m, IsBlocked: false),
+        new("Fonderia Emiliana S.r.l.", "IT01000070001", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210, 41123 Modena (MO)", 30_000m, IsBlocked: true),
+        new("Imballaggi Tirreno S.r.l.", "IT01000040004", "ordini@imballaggitirreno.it", "Via Aurelia 150, 57121 Livorno (LI)", 40_000m, IsBlocked: false),
+        new("Plastiche Adriatiche S.r.l.", "IT01000080000", "acquisti@plasticheadriatiche.it", "Strada Montefeltro 21, 61122 Pesaro (PU)", 35_000m, IsBlocked: false),
+        new("Meccanica di Precisione Torinese S.p.A.", "IT01000060002", "supply@mptorinese.it", "Corso Francia 300, 10146 Torino (TO)", 90_000m, IsBlocked: false),
+        new("Agroalimentare Salento S.r.l.", "IT01000090009", "ordini@agrosalento.it", "Via Lecce-Surbo 7, 73100 Lecce (LE)", 25_000m, IsBlocked: false),
+        new("Lavorazioni Lamiera Friuli S.r.l.", "IT01000100006", "acquisti@lamierafriuli.it", "Via Pradamano 55, 33100 Udine (UD)", 45_000m, IsBlocked: false),
     ];
 
     public static IReadOnlyList<DemoCompany> Companies { get; } =
     [
-        new("C-01", "Officine Meccaniche Brambilla S.r.l.", "IT01234560157", "acquisti@brambilla-om.it", "Via dell'Industria 12, 20054 Segrate (MI)"),
-        new("C-02", "Cartiera del Brenta S.p.A.", "IT04567890280", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3, 35010 Vigonza (PD)"),
-        new("C-03", "Automazioni Nord-Est S.r.l.", "IT03456780268", "purchasing@automazioni-ne.it", "Viale Venezia 88, 31100 Treviso (TV)"),
-        new("C-04", "Nuova Robotica Marche S.r.l.", "IT11234560422", "acquisti@nuovaroboticamarche.it", "Via dell'Artigianato 9, 60027 Osimo (AN)"),
-        new("C-05", "Fonderia Emiliana S.r.l.", "IT05678900375", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210, 41123 Modena (MO)"),
-        new("C-06", "Tessitura Valle Seriana S.p.A.", "IT02345670163", "ordini@tessituravs.it", "Via Provinciale 45, 24021 Albino (BG)"),
-        new("C-07", "Imballaggi Tirreno S.r.l.", "IT06789010484", "ordini@imballaggitirreno.it", "Via Aurelia 150, 57121 Livorno (LI)"),
-        new("C-08", "Siderurgica Lombarda Nuova S.p.A.", "IT12345670965", "procurement@siderlombarda.it", "Via Brescia 400, 25014 Castenedolo (BS)"),
+        new("C-01", "Officine Meccaniche Brambilla S.r.l.", "IT01000010007", "acquisti@brambilla-om.it", "Via dell'Industria 12, 20054 Segrate (MI)"),
+        new("C-02", "Cartiera del Brenta S.p.A.", "IT01000020006", "approvvigionamenti@cartierabrenta.it", "Via Riviera 3, 35010 Vigonza (PD)"),
+        new("C-03", "Automazioni Nord-Est S.r.l.", "IT01000030005", "purchasing@automazioni-ne.it", "Viale Venezia 88, 31100 Treviso (TV)"),
+        new("C-04", "Nuova Robotica Marche S.r.l.", "IT01000110005", "acquisti@nuovaroboticamarche.it", "Via dell'Artigianato 9, 60027 Osimo (AN)"),
+        new("C-05", "Fonderia Emiliana S.r.l.", "IT01000070001", "acquisti@fonderiaemiliana.it", "Via Emilia Ovest 210, 41123 Modena (MO)"),
+        new("C-06", "Tessitura Valle Seriana S.p.A.", "IT01000050003", "ordini@tessituravs.it", "Via Provinciale 45, 24021 Albino (BG)"),
+        new("C-07", "Imballaggi Tirreno S.r.l.", "IT01000040004", "ordini@imballaggitirreno.it", "Via Aurelia 150, 57121 Livorno (LI)"),
+        new("C-08", "Siderurgica Lombarda Nuova S.p.A.", "IT01000120004", "procurement@siderlombarda.it", "Via Brescia 400, 25014 Castenedolo (BS)"),
     ];
 
     public static IReadOnlyList<DemoDeal> Deals { get; } =

@@ -181,13 +181,13 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\"companyId\":\"C-01\",\"name\":\"Officine Meccaniche Brambilla S.r.l.\",\"vatNumber\":\"IT01234560157\",\"email\":\"acquisti@brambilla-om.it\",\"address\":\"Via dell\\u0027Industria 12, 20054 Segrate (MI)\"}"
+                "text": "{\"companyId\":\"C-01\",\"name\":\"Officine Meccaniche Brambilla S.r.l.\",\"vatNumber\":\"IT01000010007\",\"email\":\"acquisti@brambilla-om.it\",\"address\":\"Via dell\\u0027Industria 12, 20054 Segrate (MI)\"}"
               }
             ],
             "structuredContent": {
               "companyId": "C-01",
               "name": "Officine Meccaniche Brambilla S.r.l.",
-              "vatNumber": "IT01234560157",
+              "vatNumber": "IT01000010007",
               "email": "acquisti@brambilla-om.it",
               "address": "Via dell'Industria 12, 20054 Segrate (MI)"
             },

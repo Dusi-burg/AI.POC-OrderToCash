@@ -21,7 +21,7 @@ public sealed class ErpTools(ErpApiClient erp)
         + "(se ci sono entrambi vale prima la partita IVA). Restituisce { customer }: customer è null se il cliente non esiste, "
         + "e non è un errore. isBlocked = true indica un cliente bloccato.")]
     public async Task<GetCustomerResponse> GetCustomerAsync(
-        [Description("Partita IVA del cliente, es. IT01234560157.")] string? vatNumber = null,
+        [Description("Partita IVA del cliente, es. IT01000010007.")] string? vatNumber = null,
         [Description("Email del cliente.")] string? email = null,
         CancellationToken cancellationToken = default)
     {

@@ -176,13 +176,13 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\"companyId\":\"C-07\",\"name\":\"Imballaggi Tirreno S.r.l.\",\"vatNumber\":\"IT06789010484\",\"email\":\"ordini@imballaggitirreno.it\",\"address\":\"Via Aurelia 150, 57121 Livorno (LI)\"}"
+                "text": "{\"companyId\":\"C-07\",\"name\":\"Imballaggi Tirreno S.r.l.\",\"vatNumber\":\"IT01000040004\",\"email\":\"ordini@imballaggitirreno.it\",\"address\":\"Via Aurelia 150, 57121 Livorno (LI)\"}"
               }
             ],
             "structuredContent": {
               "companyId": "C-07",
               "name": "Imballaggi Tirreno S.r.l.",
-              "vatNumber": "IT06789010484",
+              "vatNumber": "IT01000040004",
               "email": "ordini@imballaggitirreno.it",
               "address": "Via Aurelia 150, 57121 Livorno (LI)"
             },

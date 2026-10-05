@@ -16,7 +16,7 @@ GET {{erp}}/api/stock/IND-SEN-999?quantity=1
 
 ### Cliente per partita IVA (azienda C-01 del deal D-1001)
 # @name customer
-GET {{erp}}/api/customers?vatNumber=IT01234560157
+GET {{erp}}/api/customers?vatNumber=IT01000010007
 
 ### Cliente per email
 GET {{erp}}/api/customers?email=acquisti@brambilla-om.it
@@ -27,7 +27,7 @@ Content-Type: application/json
 
 {
   "name": "Nuova Robotica Marche S.r.l.",
-  "vatNumber": "IT11234560422",
+  "vatNumber": "IT01000110005",
   "email": "acquisti@nuovaroboticamarche.it",
   "address": "Via dell'Artigianato 9, 60027 Osimo (AN)"
 }
