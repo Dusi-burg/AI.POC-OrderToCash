@@ -52,7 +52,8 @@ public sealed class ModelClientFactory(IConfiguration configuration, ILoggerFact
 
     /// <summary>
     /// Haiku 4.5 non supporta l'adaptive thinking dei modelli 4.6+: con la modalità Extended e senza <c>ChatOptions.Reasoning</c>
-    /// il client non invia alcuna configurazione di thinking.
+    /// il client non invia alcuna configurazione di thinking. Haiku 5.5 accetta solo l'adaptive (un budget di thinking è un 400)
+    /// e rifiuta una temperatura diversa dal default, come Sonnet 5: qui non se ne invia nessuna.
     /// </summary>
     internal static AnthropicThinkingMode ThinkingModeFor(string model) =>
         model.StartsWith("claude-haiku-4-5", StringComparison.OrdinalIgnoreCase)
@@ -79,6 +80,11 @@ public sealed class ModelClientFactory(IConfiguration configuration, ILoggerFact
         // Qwen 3.5 con il thinking attivo a volte lascia la chiamata al tool dentro il ragionamento.
         defaults.AddOllamaOption(OllamaOption.Think, false);
         defaults.AddOllamaOption(OllamaOption.NumCtx, options.OllamaContextLength);
+
+        if (options.OllamaNumGpu is int numGpu)
+        {
+            defaults.AddOllamaOption(OllamaOption.NumGpu, numGpu);
+        }
 
         return (client, options.OllamaModel, defaults);
     }

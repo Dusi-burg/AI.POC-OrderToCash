@@ -209,6 +209,7 @@ The orchestrator depends only on `IChatClient`: the model provider is chosen thr
 | `ANTHROPIC_API_KEY` | — | Secret: `Parameters:anthropic-api-key` in the AppHost user-secrets |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5` | Claude via the Anthropic API (`Anthropic` SDK for C#) |
 | `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX` | `http://localhost:11434`, `qwen3.5:9b`, `16384` | Local model, measured without acceptance criteria |
+| `OLLAMA_NUM_GPU` | `99` | Local model layers on the GPU (99 = all); `auto` lets Ollama decide, and from 0.40 on 8 GB of VRAM it moves one layer to the CPU |
 
 Local model (optional): `winget install Ollama.Ollama`, then `ollama pull qwen3.5:9b`. On 8 GB of VRAM Ollama would pick a 4096-token context, too small for the agent: the orchestrator raises it to 16384 and disables thinking.
 

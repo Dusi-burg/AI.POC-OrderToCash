@@ -31,8 +31,9 @@ Si impostano **sull'AppHost** (riga di comando, user-secrets o variabili d'ambie
 | Impostazione | Default | A cosa serve |
 |--------------|---------|--------------|
 | `MODEL_PROVIDER` | `anthropic` | `anthropic` (Claude via API) oppure `ollama` (modello locale, D41) |
-| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Modello cloud; per i run di accettazione è stato usato `claude-haiku-4-5` (D43) |
+| `ANTHROPIC_MODEL` | `claude-sonnet-5` | Modello cloud; per i run di accettazione è stato usato `claude-haiku-4-5` (D43); dal 2026-10-14 `appsettings.json` dell'orchestratore indica `claude-haiku-5-5` |
 | `OLLAMA_MODEL` | `qwen3.5:9b` | Modello locale |
+| `OLLAMA_NUM_GPU` | `99` | Layer del modello locale in GPU (tutti); `auto` lascia decidere a Ollama |
 | `O2C_AGENT_MODE` | `multi` | `multi` (tre agenti con handoff) oppure `single` (agente della Fase 3, D47) |
 | `APPROVAL_THRESHOLD_EUR` | `10000` | Soglia oltre la quale serve l'approvazione (confronto stretto) |
 | `APPROVAL_TIMEOUT_HOURS` | `24` | Scadenza di una richiesta pendente; accetta i decimali (`0.02` ≈ 72 secondi, G5.5) |

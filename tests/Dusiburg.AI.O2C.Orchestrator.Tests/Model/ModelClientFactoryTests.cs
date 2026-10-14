@@ -47,9 +47,37 @@ public class ModelClientFactoryTests
         Assert.That(model.DefaultOptions.Temperature, Is.EqualTo(0.1f));
         Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.Think.Name], Is.EqualTo(false));
         Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.NumCtx.Name], Is.EqualTo(ModelOptions.DefaultOllamaContextLength));
+        Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.NumGpu.Name], Is.EqualTo(ModelOptions.DefaultOllamaNumGpu));
+    }
+
+    [TestCase("20", 20)]
+    [TestCase("0", 0)]
+    [TestCase("non-un-numero", ModelOptions.DefaultOllamaNumGpu)]
+    public void Create_OllamaNumGpu_UsesConfiguredLayers(string value, int expected)
+    {
+        //SETUP
+        var factory = Factory(new() { ["MODEL_PROVIDER"] = "ollama", ["OLLAMA_NUM_GPU"] = value });
+
+        //SUT
+        using var model = factory.Create();
+
+        Assert.That(model.DefaultOptions.AdditionalProperties?[OllamaOption.NumGpu.Name], Is.EqualTo(expected));
+    }
+
+    [Test]
+    public void Create_OllamaNumGpuAuto_LeavesChoiceToOllama()
+    {
+        //SETUP
+        var factory = Factory(new() { ["MODEL_PROVIDER"] = "ollama", ["OLLAMA_NUM_GPU"] = ModelOptions.AutomaticOllamaNumGpu });
+
+        //SUT
+        using var model = factory.Create();
+
+        Assert.That(model.DefaultOptions.AdditionalProperties?.ContainsKey(OllamaOption.NumGpu.Name), Is.False);
     }
 
     [TestCase("claude-haiku-4-5", AnthropicThinkingMode.Extended)]
+    [TestCase("claude-haiku-5-5", AnthropicThinkingMode.Adaptive)]
     [TestCase("claude-sonnet-5", AnthropicThinkingMode.Adaptive)]
     [TestCase("claude-opus-5", AnthropicThinkingMode.Adaptive)]
     public void ThinkingModeFor_Model_MatchesSupportedMode(string model, AnthropicThinkingMode expected)
@@ -62,12 +90,13 @@ public class ModelClientFactoryTests
     public void Create_AnthropicHaiku_OnlyFromConfiguration()
     {
         //SETUP
-        var factory = Factory(new() { ["ANTHROPIC_API_KEY"] = "test-key", ["ANTHROPIC_MODEL"] = "claude-haiku-4-5" });
+        var factory = Factory(new() { ["ANTHROPIC_API_KEY"] = "test-key", ["ANTHROPIC_MODEL"] = "claude-haiku-5-5" });
 
         //SUT
         using var model = factory.Create();
 
-        Assert.That((model.Provider, model.ModelId), Is.EqualTo((ModelProviders.Anthropic, "claude-haiku-4-5")));
+        Assert.That((model.Provider, model.ModelId), Is.EqualTo((ModelProviders.Anthropic, "claude-haiku-5-5")));
+        Assert.That(model.DefaultOptions.Temperature, Is.Null, "Haiku 5.5 rifiuta una temperatura diversa dal default");
     }
 
     [TestCase("openai")]

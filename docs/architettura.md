@@ -303,6 +303,7 @@ Chiavi di configurazione (user\-secrets in locale, secret di Container Apps o Ke
 | `MODEL_PROVIDER` | `anthropic` (default) oppure `ollama` — vedi §3.3 (M23) |
 | `ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL` | Claude via API Anthropic: chiave (solo user-secrets o secret, M10) e modello, default `claude-sonnet-5` |
 | `OLLAMA_ENDPOINT`, `OLLAMA_MODEL` | solo con `MODEL_PROVIDER=ollama`; default `http://localhost:11434` e `qwen3.5:9b` |
+| `OLLAMA_NUM_GPU` | layer del modello locale in GPU, default `99` (tutti); `auto` = margine automatico di Ollama, che dalla 0.40 su 8 GB lascia un layer sulla CPU |
 | `O2C_AGENT_MODE` | `multi` (default: Intake → Fulfillment → Order con handoff) oppure `single` (agente unico, per confronto) (M24) |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | in locale punta al dashboard Aspire |
 | `ERP_MCP_URL`, `CRM_MCP_URL` | endpoint dei due server MCP |
