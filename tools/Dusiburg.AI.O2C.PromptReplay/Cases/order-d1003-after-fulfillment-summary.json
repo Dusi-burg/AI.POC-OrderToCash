@@ -21,7 +21,7 @@
         "type": "object",
         "properties": {
           "vatNumber": {
-            "description": "Partita IVA del cliente, es. IT01234560157.",
+            "description": "Partita IVA del cliente, es. IT01000010007.",
             "type": [
               "string",
               "null"
@@ -258,13 +258,13 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\"companyId\":\"C-03\",\"name\":\"Automazioni Nord-Est S.r.l.\",\"vatNumber\":\"IT03456780268\",\"email\":\"purchasing@automazioni-ne.it\",\"address\":\"Viale Venezia 88, 31100 Treviso (TV)\"}"
+                "text": "{\"companyId\":\"C-03\",\"name\":\"Automazioni Nord-Est S.r.l.\",\"vatNumber\":\"IT01000030005\",\"email\":\"purchasing@automazioni-ne.it\",\"address\":\"Viale Venezia 88, 31100 Treviso (TV)\"}"
               }
             ],
             "structuredContent": {
               "companyId": "C-03",
               "name": "Automazioni Nord-Est S.r.l.",
-              "vatNumber": "IT03456780268",
+              "vatNumber": "IT01000030005",
               "email": "purchasing@automazioni-ne.it",
               "address": "Viale Venezia 88, 31100 Treviso (TV)"
             },
@@ -424,7 +424,7 @@
           "functionCall": "get_customer",
           "callId": "52f9283d",
           "arguments": {
-            "vatNumber": "IT03456780268"
+            "vatNumber": "IT01000030005"
           }
         },
         {

@@ -176,13 +176,13 @@
             "content": [
               {
                 "type": "text",
-                "text": "{\"companyId\":\"C-03\",\"name\":\"Automazioni Nord-Est S.r.l.\",\"vatNumber\":\"IT03456780268\",\"email\":\"purchasing@automazioni-ne.it\",\"address\":\"Viale Venezia 88, 31100 Treviso (TV)\"}"
+                "text": "{\"companyId\":\"C-03\",\"name\":\"Automazioni Nord-Est S.r.l.\",\"vatNumber\":\"IT01000030005\",\"email\":\"purchasing@automazioni-ne.it\",\"address\":\"Viale Venezia 88, 31100 Treviso (TV)\"}"
               }
             ],
             "structuredContent": {
               "companyId": "C-03",
               "name": "Automazioni Nord-Est S.r.l.",
-              "vatNumber": "IT03456780268",
+              "vatNumber": "IT01000030005",
               "email": "purchasing@automazioni-ne.it",
               "address": "Viale Venezia 88, 31100 Treviso (TV)"
             },

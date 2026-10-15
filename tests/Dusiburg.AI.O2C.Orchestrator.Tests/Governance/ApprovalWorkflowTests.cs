@@ -329,12 +329,12 @@ public class ApprovalWorkflowTests
     {
         var order = createCustomer
             ? Script(
-                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01234560157" }),
-                Call("o1b", "create_customer", new() { ["name"] = "Nuova Robotica Marche S.r.l.", ["vatNumber"] = "IT11234560422", ["email"] = "acquisti@nuovaroboticamarche.it", ["address"] = "Via dell'Artigianato 9" }),
+                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01000010007" }),
+                Call("o1b", "create_customer", new() { ["name"] = "Nuova Robotica Marche S.r.l.", ["vatNumber"] = "IT01000110005", ["email"] = "acquisti@nuovaroboticamarche.it", ["address"] = "Via dell'Artigianato 9" }),
                 CreateOrder(),
                 UpdateDeal())
             : Script(
-                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01234560157" }),
+                Call("o1", "get_customer", new() { ["vatNumber"] = "IT01000010007" }),
                 CreateOrder(),
                 UpdateDeal());
 

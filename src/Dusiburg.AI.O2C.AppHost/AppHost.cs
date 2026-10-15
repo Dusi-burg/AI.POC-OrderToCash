@@ -55,6 +55,7 @@ orchestrator.WithConfigurationEnvironment(
     "ANTHROPIC_MODEL",
     "OLLAMA_MODEL",
     "OLLAMA_ENDPOINT",
+    "OLLAMA_NUM_GPU",
     "O2C_AGENT_MODE",
     "APPROVAL_THRESHOLD_EUR",
     "APPROVAL_TIMEOUT_HOURS",

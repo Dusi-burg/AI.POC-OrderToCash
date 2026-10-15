@@ -203,6 +203,7 @@ L'orchestratore dipende solo da `IChatClient`: il provider del modello si scegli
 | `ANTHROPIC_API_KEY` | — | Segreto: `Parameters:anthropic-api-key` negli user-secrets dell'AppHost |
 | `ANTHROPIC_MODEL` | `claude-sonnet-5` | Claude via API Anthropic (SDK `Anthropic` per C#) |
 | `OLLAMA_ENDPOINT`, `OLLAMA_MODEL`, `OLLAMA_NUM_CTX` | `http://localhost:11434`, `qwen3.5:9b`, `16384` | Modello locale, misurato senza criteri di accettazione |
+| `OLLAMA_NUM_GPU` | `99` | Layer del modello locale in GPU (99 = tutti); `auto` lascia decidere a Ollama, che dalla 0.40 su 8 GB di VRAM sposta un layer sulla CPU |
 
 Modello locale (facoltativo): `winget install Ollama.Ollama`, poi `ollama pull qwen3.5:9b`. Con 8 GB di VRAM Ollama userebbe un contesto di 4096 token, troppo piccolo per l'agente: l'orchestratore lo porta a 16384 e disattiva il thinking.
 

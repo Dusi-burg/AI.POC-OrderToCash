@@ -120,7 +120,7 @@ public class SingleOrderAgentTests
         _ => Call("1", "get_deal", new() { ["dealId"] = "D-1001" }),
         _ => Call("2", "get_company", new() { ["companyId"] = "C-01" }),
         _ => Call("3", "check_stock", new() { ["sku"] = "IND-BRG-001", ["quantity"] = 40 }),
-        _ => Call("4", "get_customer", new() { ["vatNumber"] = "IT01234560157" }),
+        _ => Call("4", "get_customer", new() { ["vatNumber"] = "IT01000010007" }),
         _ => Call("5", "create_order", new() { ["customerId"] = 1, ["lines"] = Lines, ["idempotencyKey"] = "invented", ["externalRef"] = "D-9999" }),
         _ => Call("6", "update_deal", new() { ["dealId"] = "D-1001", ["status"] = "OrderCreated", ["erpOrderNumber"] = FakeO2CTools.OrderNumber, ["note"] = "ok" }),
     ];
