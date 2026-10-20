@@ -7,6 +7,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="MessagePack" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Api\Dusiburg.AI.O2C.Erp.Api.csproj" />
     <ProjectReference Include="..\Dusiburg.AI.O2C.Erp.Mcp\Dusiburg.AI.O2C.Erp.Mcp.csproj" />
     <ProjectReference Include="..\Dusiburg.AI.O2C.Crm.Mcp\Dusiburg.AI.O2C.Crm.Mcp.csproj" />

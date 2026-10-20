@@ -32,6 +32,10 @@
     <PackageVersion Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
     <PackageVersion Include="Aspire.Microsoft.EntityFrameworkCore.SqlServer" Version="13.6.1" />
   </ItemGroup>
+  <ItemGroup Label="AppHost">
+    <!-- Aspire.Hosting 13.6.1 porta la 2.5.302, con vulnerabilità nota (GHSA-qhrr-8q5h-9q3h, corretta dalla 2.5.303): patch della stessa linea. Da togliere quando Aspire porta una versione corretta. -->
+    <PackageVersion Include="MessagePack" Version="2.5.307" />
+  </ItemGroup>
   <ItemGroup Label="Test">
     <PackageVersion Include="Microsoft.Testing.Extensions.CodeCoverage" Version="18.12.0" />
     <PackageVersion Include="NUnit" Version="4.6.1" />
