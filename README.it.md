@@ -1,8 +1,8 @@
 # AI.POC-OrderToCash
 
-> 🇮🇹 **Italiano** · 🇬🇧 [English](README.md)
-
 [![CI](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml/badge.svg)](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml)
+
+*[Read in English](README.md)*
 
 POC **Order-to-Cash agentico**: quando un deal passa a *Closed Won* nel CRM, tre agenti specializzati (Microsoft Agent Framework) leggono il deal, verificano la disponibilità e creano l'ordine nell'ERP tramite due server **MCP**, con **approvazione umana** sopra determinate soglie di rischio.
 

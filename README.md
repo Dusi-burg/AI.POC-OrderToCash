@@ -1,8 +1,8 @@
 # AI.POC-OrderToCash
 
-> 🇬🇧 **English** · 🇮🇹 [Italiano](README.it.md)
-
 [![CI](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml/badge.svg)](https://github.com/Dusi-burg/AI.POC-OrderToCash/actions/workflows/ci.yml)
+
+*[Leggi in italiano](README.it.md)*
 
 An **agentic Order-to-Cash** proof of concept: when a deal moves to *Closed Won* in the CRM, three specialised agents (Microsoft Agent Framework) read the deal, check stock availability and create the order in the ERP through two **MCP** servers, pausing for **human approval** above defined risk thresholds.
 
